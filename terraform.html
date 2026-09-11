@@ -1,0 +1,1524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TERRAFORM — can you nuke Mars into having an atmosphere?</title>
+<style>
+:root{
+  --bg:#0a0705; --panel:#130e0a; --panel2:#1b1410; --line:#2e231c;
+  --ink:#f0e3d8; --dim:#b09582; --dim2:#7a6455;
+  --rust:#e07a45; --amber:#ffb347; --gold:#ffd166;
+  --cyan:#5ad8ff; --green:#5ee6a8; --red:#ff6b6b; --violet:#c77dff;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Inter,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;overflow:hidden}
+button,select,input{font-family:inherit;font-size:inherit;color:inherit}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#33261e;border-radius:5px}
+
+#app{display:grid;grid-template-rows:auto 1fr;height:100%}
+header{
+  display:flex;align-items:center;gap:16px;padding:9px 14px;flex-wrap:wrap;
+  background:linear-gradient(180deg,#1d1410,#0d0907);border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:baseline;gap:9px}
+.brand b{font-size:15px;letter-spacing:.18em}
+.brand span{font-size:10px;color:var(--dim2);letter-spacing:.09em;text-transform:uppercase}
+.hg{display:flex;align-items:center;gap:8px}
+.hg>label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.09em}
+.hval{font-family:var(--mono);font-size:12px;color:var(--amber);min-width:70px}
+
+main{display:grid;grid-template-columns:300px 1fr 330px;min-height:0}
+aside{background:var(--panel);overflow-y:auto;min-height:0;border-right:1px solid var(--line)}
+aside.right{border-right:none;border-left:1px solid var(--line)}
+#stage{min-width:0;min-height:0;overflow-y:auto;padding:14px}
+
+.sec{border-bottom:1px solid var(--line)}
+.sec>h3{
+  margin:0;padding:9px 13px;font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--dim2);font-weight:600;display:flex;justify-content:space-between;cursor:pointer;user-select:none;
+}
+.sec>h3:hover{color:var(--dim)}
+.sec.closed .body{display:none}
+.sec.closed .tw{transform:rotate(-90deg)}
+.tw{transition:.15s;font-size:9px}
+.body{padding:0 13px 13px}
+
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:3.5px 0}
+.row>label{font-size:11.5px;color:var(--dim)}
+.row .v{font-family:var(--mono);font-size:11.5px;text-align:right}
+.v.hi{color:var(--gold)} .v.cy{color:var(--cyan)} .v.bad{color:var(--red)} .v.ok{color:var(--green)}
+.field{margin:9px 0}
+.field>span{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim);margin-bottom:4px}
+.field>span em{font-style:normal;font-family:var(--mono);color:var(--amber)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:3px;border-radius:2px;background:#30241c;outline:none;margin:0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--rust);cursor:pointer;border:2px solid #100b08;box-shadow:0 0 0 1px var(--rust)}
+input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--rust);cursor:pointer;border:2px solid #100b08}
+select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:5.5px 8px}
+select:focus{outline:none;border-color:var(--rust)}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:6px 10px;cursor:pointer;font-size:11.5px;color:var(--dim);transition:.13s}
+.btn:hover{border-color:#4a382c;color:var(--ink)}
+.btn.pri{background:rgba(224,122,69,.15);border-color:#7a4326;color:var(--rust)}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--dim2);padding:3px 9px;border-radius:5px;font-size:11px;cursor:pointer;user-select:none}
+.chip.on{background:rgba(224,122,69,.18);border-color:var(--rust);color:var(--rust)}
+.note{font-size:10.5px;color:var(--dim2);line-height:1.55;margin-top:8px}
+.warn{color:var(--amber)} .err{color:var(--red)}
+
+/* headline verdict */
+#verdict{border:1px solid #4a2a1c;border-radius:9px;padding:12px 13px;margin-bottom:12px;
+  background:linear-gradient(180deg,rgba(224,122,69,.10),rgba(224,122,69,0))}
+#verdict .lab{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim2)}
+#verdict .ans{font-size:19px;font-weight:600;line-height:1.25;margin:3px 0 6px}
+#verdict .sub{font-size:11.5px;color:var(--dim);line-height:1.55}
+.check{display:flex;gap:7px;align-items:baseline;font-size:11.5px;padding:3px 0;line-height:1.45}
+.check i{font-style:normal;flex:0 0 auto}
+.check.ok i{color:var(--green)} .check.no i{color:var(--red)}
+.check.no span{color:var(--dim)}
+
+/* reservoir bars */
+.res{margin:7px 0}
+.res .lab{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim);margin-bottom:3px}
+.res .lab em{font-style:normal;font-family:var(--mono);color:var(--ink)}
+.bar{height:9px;background:#241a14;border-radius:5px;overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+
+canvas{display:block;width:100%}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:12px}
+.card h4{margin:0 0 8px;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim2);font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:1400px){.grid2{grid-template-columns:1fr}}
+
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.stat div{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+.stat .k{font-size:9.5px;color:var(--dim2);letter-spacing:.08em;text-transform:uppercase}
+.stat .n{font-family:var(--mono);font-size:16px;color:var(--gold);line-height:1.3}
+.stat .u{font-size:10px;color:var(--dim2)}
+
+#log{font-family:var(--mono);font-size:10.5px;line-height:1.6;max-height:130px;overflow:auto}
+#log div{color:var(--dim)} #log .good{color:var(--green)} #log .bad{color:var(--red)}
+#log time{color:var(--dim2);margin-right:8px}
+
+@media (max-width:1080px){
+  body{overflow:auto}
+  main{grid-template-columns:1fr}
+  aside{border-right:none;border-bottom:1px solid var(--line)}
+  aside.right{border-left:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <div class="brand"><b>TERRAFORM</b><span>planetary atmosphere sandbox</span></div>
+  <div class="hg" style="flex:0 0 150px"><label>world</label><select id="world"></select></div>
+  <div class="hg" style="flex:0 0 230px"><label>scenario</label><select id="scenario"></select></div>
+  <div class="hg" style="flex:0 1 190px"><label>speed</label>
+    <input type="range" id="speed" min="0" max="1000" value="500" style="flex:1">
+    <span class="hval" id="speedV"></span></div>
+  <div class="hg">
+    <button class="btn pri" id="play">❚❚ Pause</button>
+    <button class="btn" id="reset">Reset</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="sec"><h3>Nuclear campaign <span class="tw">▾</span></h3><div class="body">
+      <div class="row"><label>detonations</label><button class="chip" id="nukeOn">off</button></div>
+      <div class="field"><span>yield per device <em id="nYV"></em></span><input type="range" id="nY" min="0" max="1000" value="333"></div>
+      <div class="field"><span>devices per year <em id="nCV"></em></span><input type="range" id="nC" min="0" max="1000" value="500"></div>
+      <div class="field"><span>campaign length <em id="nTV"></em></span><input type="range" id="nT" min="1" max="1000" value="100"></div>
+      <div class="field"><span>energy coupled to ice <em id="nKV"></em></span><input type="range" id="nK" min="1" max="1000" value="50"></div>
+      <div class="field"><span>fission fraction <em id="nFV"></em></span><input type="range" id="nF" min="0" max="100" value="50"></div>
+      <div class="row"><label>target</label><select id="nTarget" style="width:auto">
+        <option value="cap">polar CO₂ ice</option><option value="rego">regolith</option><option value="carb">carbonate rock</option></select></div>
+      <div class="note" id="nukeNote"></div>
+    </div></div>
+
+    <div class="sec"><h3>Orbital mirrors <span class="tw">▾</span></h3><div class="body">
+      <div class="row"><label>mirrors</label><button class="chip" id="mirOn">off</button></div>
+      <div class="field"><span>extra sunlight <em id="mFV"></em></span><input type="range" id="mF" min="0" max="1000" value="0"></div>
+      <div class="note" id="mirNote"></div>
+    </div></div>
+
+    <div class="sec"><h3>Greenhouse factories <span class="tw">▾</span></h3><div class="body">
+      <div class="row"><label>PFC production</label><button class="chip" id="pfcOn">off</button></div>
+      <div class="field"><span>output <em id="pRV"></em></span><input type="range" id="pR" min="0" max="1000" value="400"></div>
+      <div class="note" id="pfcNote"></div>
+    </div></div>
+
+    <div class="sec closed"><h3>Comet delivery <span class="tw">▾</span></h3><div class="body">
+      <div class="row"><label>redirect comets</label><button class="chip" id="comOn">off</button></div>
+      <div class="field"><span>body diameter <em id="cDV"></em></span><input type="range" id="cD" min="1" max="1000" value="500"></div>
+      <div class="field"><span>impacts per year <em id="cNV"></em></span><input type="range" id="cN" min="0" max="1000" value="200"></div>
+      <div class="note" id="comNote"></div>
+    </div></div>
+
+    <div class="sec closed"><h3>Other levers <span class="tw">▾</span></h3><div class="body">
+      <div class="field"><span>darken the surface <em id="dustV"></em></span><input type="range" id="dust" min="-20" max="20" value="0"></div>
+      <div class="row"><label>calcine carbonates</label><button class="chip" id="bakeOn">off</button></div>
+      <div class="field"><span>plant output <em id="bRV"></em></span><input type="range" id="bR" min="0" max="1000" value="500"></div>
+      <div class="note">Most of Mars' carbon is chemically bound in rock. Getting it out means
+        mining and heating that rock to about 900 K — the single most energy-hungry option here.</div>
+    </div></div>
+  </aside>
+
+  <section id="stage">
+    <div class="card"><canvas id="planet" height="300"></canvas>
+      <div class="stat" id="stats" style="margin-top:12px"></div></div>
+    <div class="grid2">
+      <div class="card"><h4>Surface pressure</h4><canvas id="chartP" height="170"></canvas></div>
+      <div class="card"><h4>Surface temperature</h4><canvas id="chartT" height="170"></canvas></div>
+    </div>
+    <div class="card"><h4>Where the CO₂ actually is</h4><div id="reservoirs"></div></div>
+    <div class="card"><h4>What it would take</h4><div id="requirement"></div></div>
+    <div class="card"><h4>Log</h4><div id="log"></div></div>
+  </section>
+
+  <aside class="right">
+    <div class="sec"><h3>Verdict <span class="tw">▾</span></h3><div class="body">
+      <div id="verdict"></div>
+      <div id="checks"></div>
+    </div></div>
+    <div class="sec"><h3>Atmosphere <span class="tw">▾</span></h3><div class="body" id="atmos"></div></div>
+    <div class="sec"><h3>This world <span class="tw">▾</span></h3><div class="body" id="worldout"></div></div>
+    <div class="sec closed"><h3>Model & sources <span class="tw">▾</span></h3><div class="body" id="about"></div></div>
+  </aside>
+</main>
+</div>
+
+<script>
+/* ===== src/planets.js ===== */
+/* =====================================================================
+   planets.js — target worlds and what volatiles they actually have
+   ---------------------------------------------------------------------
+   Every number here is observational or from a published inventory, with
+   the source named.  The volatile reservoirs are the whole ballgame: you
+   cannot build an atmosphere out of gas the planet does not have, and on
+   Mars that turns out to be the binding constraint rather than gravity
+   or the solar wind.
+
+   Reservoir masses are stored in kg.  The handy conversion is that on a
+   world of surface area A and gravity g, a surface pressure p needs
+        m = p A / g
+   so 1 mbar on Mars is 3.88e15 kg of gas.
+   ===================================================================== */
+(function (global) {
+  'use strict';
+
+  const PL = {};
+
+  const SIGMA = 5.670374419e-8;      /* Stefan-Boltzmann, W/m^2/K^4 */
+  const S_EARTH = 1361;              /* solar constant at 1 AU, W/m^2 */
+  const MT_J = 4.184e15;             /* joules per megaton of TNT */
+  const YR_S = 3.15576e7;
+
+  PL.CONST = { SIGMA, S_EARTH, MT_J, YR_S };
+
+  /* CO2 properties near Martian conditions */
+  PL.CO2 = {
+    L_sub: 573e3,        /* enthalpy of sublimation at ~195 K, J/kg */
+    cp_ice: 850,         /* specific heat of CO2 ice, J/kg/K */
+    T_ice: 150,          /* typical cap temperature before heating, K */
+    molar: 0.04401       /* kg/mol */
+  };
+  PL.H2O = { L_sub: 2.83e6, cp_ice: 2050, L_fus: 3.34e5, molar: 0.018015 };
+
+  /* ------------------------------------------------------------------
+     Worlds.  `res` holds volatile reservoirs in kg.
+
+     Mars inventory follows Jakosky & Edwards (2018), "Inventory of CO2
+     available for terraforming Mars", Nature Astronomy 2, 634 — the
+     paper that actually totted this up and concluded there is not
+     enough.  Their headline numbers, as equivalent surface pressure:
+        present atmosphere        ~6 mbar
+        south polar CO2 ice      ~10-12 mbar
+        CO2 adsorbed in regolith  ~4-40 mbar (very uncertain)
+        carbonate minerals       ~150 mbar, but locked in rock and
+                                  needing ~900 K to drive off
+     ------------------------------------------------------------------ */
+  const WORLDS = {
+    mars: {
+      name: 'Mars',
+      R: 3.3895e6,                 /* m */
+      g: 3.7211,
+      M: 6.4171e23,
+      a_AU: 1.523679,
+      albedo: 0.250,               /* Bond albedo, NASA Mars fact sheet */
+      rotation_h: 24.6229,
+      T_obs: 210,                  /* observed global mean surface T, K */
+      p_obs: 610,                  /* observed mean surface pressure, Pa */
+      modelled: true,
+      confidence: 'good — the greenhouse parameterisation is calibrated ' +
+        'against published 1-D and 3-D results for thin CO2 atmospheres',
+      res: {
+        atm_co2: 2.37e16,          /* = 6.1 mbar */
+        cap_co2: 4.66e16,          /* 12 mbar, south polar residual + buried */
+        rego_co2: 1.55e17,         /* 40 mbar, adsorbed — upper end of the range */
+        carb_co2: 5.82e17,         /* 150 mbar locked in carbonate rock */
+        ice_h2o: 2.1e19,           /* polar layered deposits + ground ice */
+        atm_h2o: 2e12
+      },
+      notes: 'The only world here the model is really built for. ' +
+        'Everything you can reach adds up to about 20 mbar; the rest is ' +
+        'chemically bound in rock.'
+    },
+
+    moon: {
+      name: 'The Moon',
+      R: 1.7374e6, g: 1.625, M: 7.342e22, a_AU: 1.0,
+      albedo: 0.11, rotation_h: 655.7, T_obs: 250, p_obs: 3e-10,
+      modelled: true,
+      confidence: 'poor — essentially no volatiles and no way to hold a ' +
+        'warm atmosphere; shown to make the contrast concrete',
+      res: {
+        atm_co2: 1e4, cap_co2: 0, rego_co2: 0, carb_co2: 0,
+        ice_h2o: 6e14,             /* permanently shadowed crater ice, ~600 Mt */
+        atm_h2o: 0
+      },
+      notes: 'Escape actually is the problem here: the Moon is too small ' +
+        'and too warm to retain anything you release.'
+    },
+
+    titan: {
+      name: 'Titan',
+      R: 2.5747e6, g: 1.352, M: 1.3452e23, a_AU: 9.5826,
+      albedo: 0.22, rotation_h: 382.7, T_obs: 94, p_obs: 146700,
+      modelled: false,
+      confidence: 'not modelled — Titan already has 1.5 bar of N2 plus a ' +
+        'methane greenhouse and an organic-haze anti-greenhouse that this ' +
+        'CO2 parameterisation does not represent',
+      res: {
+        atm_co2: 0, cap_co2: 0, rego_co2: 0, carb_co2: 0,
+        ice_h2o: 4e22, atm_h2o: 0
+      },
+      notes: 'Has the atmosphere problem solved and a temperature problem ' +
+        'instead: 94 K, and 10 AU from the Sun.'
+    },
+
+    europa: {
+      name: 'Europa',
+      R: 1.5608e6, g: 1.315, M: 4.7998e22, a_AU: 5.2044,
+      albedo: 0.68, rotation_h: 85.2, T_obs: 102, p_obs: 1e-6,
+      modelled: true,
+      confidence: 'poor — surface is water ice at 102 K with no CO2 ' +
+        'reservoir to speak of',
+      res: {
+        atm_co2: 0, cap_co2: 0, rego_co2: 0, carb_co2: 0,
+        ice_h2o: 3e21, atm_h2o: 1e5
+      },
+      notes: 'All the water you could want, under an ice shell, at 5 AU.'
+    },
+
+    ceres: {
+      name: 'Ceres',
+      R: 4.73e5, g: 0.27, M: 9.3839e20, a_AU: 2.7675,
+      albedo: 0.09, rotation_h: 9.07, T_obs: 168, p_obs: 1e-9,
+      modelled: true,
+      confidence: 'poor — 0.27 m/s^2 of gravity cannot hold a warm ' +
+        'atmosphere for geological times',
+      res: {
+        atm_co2: 0, cap_co2: 1e15, rego_co2: 1e16, carb_co2: 1e17,
+        ice_h2o: 2e20, atm_h2o: 1e6
+      },
+      notes: 'Escape velocity is 510 m/s. Anything you warm up leaves.'
+    }
+  };
+
+  /* Derived geometry and insolation */
+  for (const k of Object.keys(WORLDS)) {
+    const w = WORLDS[k];
+    w.key = k;
+    w.area = 4 * Math.PI * w.R * w.R;
+    w.cross = Math.PI * w.R * w.R;
+    w.S0 = S_EARTH / (w.a_AU * w.a_AU);          /* solar constant, W/m^2 */
+    w.v_esc = Math.sqrt(2 * w.g * w.R);
+    /* kg of gas per pascal, and per mbar, of surface pressure */
+    w.kg_per_Pa = w.area / w.g;
+    w.kg_per_mbar = 100 * w.area / w.g;
+    w.res0 = Object.assign({}, w.res);
+  }
+  PL.WORLDS = WORLDS;
+
+  /* Pressure from an atmospheric mass, and back again. */
+  PL.pressure = (w, m) => (m * w.g) / w.area;          /* Pa */
+  PL.massFor = (w, pPa) => (pPa * w.area) / w.g;       /* kg */
+
+  /* Equilibrium (effective) temperature for a given Bond albedo. */
+  PL.Teff = (S, A) => Math.pow((S * (1 - A)) / (4 * SIGMA), 0.25);
+
+  /* CO2 sublimation curve.  p_sat = 1.2264e12 exp(-3167.8/T) Pa is the
+     standard Mars-regime fit (Kieffer); it puts the frost point at 148 K
+     for today's 6 mbar, which is exactly what the polar caps do. */
+  PL.co2Psat = (T) => 1.2264e12 * Math.exp(-3167.8 / Math.max(T, 40));
+  PL.co2Frost = (pPa) => 3167.8 / Math.log(1.2264e12 / Math.max(pPa, 1e-12));
+
+  /* Water vapour saturation over ice / liquid (Buck), Pa. */
+  PL.h2oPsat = (T) => {
+    if (T <= 273.16) return 611.15 * Math.exp((23.036 - (T - 273.15) / 333.7) * ((T - 273.15) / (279.82 + (T - 273.15))));
+    return 611.21 * Math.exp((18.678 - (T - 273.15) / 234.5) * ((T - 273.15) / (257.14 + (T - 273.15))));
+  };
+
+  /* Thresholds a human body cares about. */
+  PL.LIMITS = {
+    triplePoint_Pa: 611.657,     /* below this liquid water cannot exist at all */
+    armstrong_Pa: 6270,          /* body-temperature water boils; ~62.7 mbar */
+    pressureSuitFree_Pa: 30000,  /* rough floor for unpressurised survival with O2 */
+    earthSeaLevel_Pa: 101325
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = PL;
+  global.PLANETS = PL;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/* ===== src/climate.js ===== */
+/* =====================================================================
+   climate.js — the box model: energy in, greenhouse, reservoirs, escape
+   ---------------------------------------------------------------------
+   This is a global-mean model, not a GCM.  It is built to get the
+   question "can you nuke Mars into having an atmosphere?" right, and it
+   is calibrated so that it reproduces published results at the points
+   that matter:
+
+     * Mars today: 6.1 mbar, T_eff 210 K, greenhouse ~5 K
+     * Mars under 1 bar of pure CO2: ~235-240 K, i.e. still frozen.
+       Forget et al. (2013, Icarus 222, 81) and Wordsworth et al. found
+       that pure CO2 simply cannot push Mars past freezing, because
+       Rayleigh scattering raises the albedo as fast as the greenhouse
+       grows.  That ceiling is the single most important fact in the
+       whole terraforming argument, so the parameterisation is built to
+       reproduce it rather than to look encouraging.
+
+   The greenhouse term is
+        dT(p) = Gmax * (1 - exp(-k p^m))      p in bar
+   with Gmax = 55 K, k = 1.0116, m = 0.4619 chosen to pass through
+   (0.006 bar, 5 K) and (1 bar, 35 K).  Albedo rises with pressure from
+   Rayleigh scattering and CO2 cloud, which is what produces the ceiling.
+   ===================================================================== */
+(function (global) {
+  'use strict';
+
+  const PL = global.PLANETS;
+  const { SIGMA } = PL.CONST;
+  const CM = {};
+
+  /* ---------------- radiation ---------------- */
+
+  /* Bond albedo as the atmosphere thickens: Rayleigh scattering by CO2
+     plus condensate cloud.  Saturates near 0.55. */
+  CM.albedo = (w, pPa, dust) => {
+    const p = pPa / 1e5;
+    const A0 = w.albedo;
+    const A = A0 + (0.55 - A0) * (1 - Math.exp(-p / 1.5));
+    /* deliberate darkening (soot, dust, engineered absorber) */
+    return Math.max(0.02, Math.min(0.9, A + (dust || 0)));
+  };
+
+  /* Greenhouse warming from a CO2-dominated atmosphere, K. */
+  CM.greenhouseCO2 = (pPa) => {
+    const p = Math.max(pPa, 0) / 1e5;
+    if (p <= 0) return 0;
+    return 55 * (1 - Math.exp(-1.0116 * Math.pow(p, 0.4619)));
+  };
+
+  /* Super-greenhouse gases.  Marinova et al. (2005, JGR 110, E03002)
+     found an optimised perfluorocarbon mixture at ~0.1 Pa partial
+     pressure gives roughly 10 K on Mars; warming grows sub-linearly as
+     the bands saturate. */
+  CM.greenhousePFC = (pPa) => {
+    if (pPa <= 0) return 0;
+    return 30 * (1 - Math.exp(-pPa / 0.32));
+  };
+
+  /* Water vapour feedback, only meaningful once it is warm enough for
+     vapour to be present in quantity.  Kept deliberately modest. */
+  CM.greenhouseH2O = (T, pPa) => {
+    if (T < 210) return 0;
+    const pv = PL.h2oPsat(T);
+    const frac = pv / Math.max(pPa, 1);
+    return 12 * (1 - Math.exp(-frac / 0.02));
+  };
+
+  /* Global mean surface temperature.
+     `mirrorBoost` is the multiplier on intercepted sunlight from orbital
+     mirrors (1 = none). */
+  CM.surfaceTemp = (w, st, opts) => {
+    opts = opts || {};
+    const pPa = PL.pressure(w, st.atm_co2 + (st.atm_n2 || 0));
+    const A = CM.albedo(w, pPa, opts.dust);
+    const S = w.S0 * (opts.mirrorBoost || 1);
+    const Teff = PL.Teff(S, A);
+    const gh = CM.greenhouseCO2(pPa) +
+      CM.greenhousePFC(PL.pressure(w, st.atm_pfc || 0)) +
+      CM.greenhouseH2O(Teff + CM.greenhouseCO2(pPa), pPa);
+    return { T: Teff + gh, Teff, A, gh, pPa, S };
+  };
+
+  /* ---------------- reservoir exchange ---------------- */
+
+  /* How much CO2 the regolith holds at equilibrium.  A Freundlich-type
+     isotherm: more at high pressure, much less when warm.  The reference
+     point is the world's own present-day state as this model computes it,
+     so an untouched planet sits exactly in equilibrium and only moves
+     when you actually do something to it. */
+  CM.regolithEquil = (w, capacity, pPa, T) => {
+    if (capacity <= 0) return 0;
+    const p0 = w._p0 || 610, T0 = w._T0 || 216;
+    const f = Math.pow(Math.max(pPa, 1e-6) / p0, 0.5) * Math.exp((3200 / T) - (3200 / T0));
+    return capacity * Math.min(1, f);
+  };
+
+  /* ---- the polar CO2 cap ----------------------------------------
+     The cap does not sit at the global mean temperature. It sits at the
+     frost point of the atmosphere above it, because any attempt to warm
+     it past that simply sublimes CO2 until the vapour pressure catches
+     up. So its temperature is pinned, and whether it grows or shrinks is
+     decided by the energy balance at the cap:
+
+         net = absorbed sunlight + downwelling IR - sigma T_frost^4
+
+     That buffering is why Mars' caps are stable today, and it is also a
+     negative feedback: thicken the atmosphere and the frost point rises,
+     so the cap radiates more and tends to grow back. You have to
+     out-muscle it.
+
+     `capSolarCoef` is set per world so that the present-day cap is in
+     balance — the honest way to anchor a box model of this kind.        */
+  CM.capBalance = (w, pPa, Tatm, S) => {
+    const Tcap = PL.co2Frost(Math.max(pPa, 1e-6));
+    const emitted = SIGMA * Math.pow(Tcap, 4);
+    const absorbed = (w._capSolar || 0.0088) * S * (1 - 0.65);
+    const irDown = CM.emissivity(pPa) * SIGMA * Math.pow(Tatm, 4);
+    return { Tcap, net: absorbed + irDown - emitted, emitted, absorbed, irDown };
+  };
+
+  /* The equilibrium the cap and the air settle into together.
+
+     While any CO2 ice remains, the surface pressure is not free: it is
+     the saturation pressure at the cap temperature, and the cap
+     temperature is whatever balances its radiation budget. So we solve
+
+         sigma T_cap^4  =  absorbed sunlight + downwelling IR( p_sat(T_cap) )
+
+     for T_cap by bisection, and read the pressure off the vapour curve.
+     Raise the sunlight and the whole curve shifts: the cap warms, the
+     pressure rises, and it keeps rising until the ice runs out. That
+     last clause is the crux of the terraforming question.               */
+  CM.capEquilibrium = (w, st, opts) => {
+    const S = w.S0 * ((opts && opts.mirrorBoost) || 1);
+    const absorbed = (w._capSolar || 0.0088) * S * (1 - 0.65);
+    const f = (Tcap) => {
+      const p = PL.co2Psat(Tcap);
+      const atm = CM.surfaceTemp(w, Object.assign({}, st, { atm_co2: PL.massFor(w, p) }), opts);
+      const irDown = CM.emissivity(p) * SIGMA * Math.pow(atm.T, 4);
+      return absorbed + irDown - SIGMA * Math.pow(Tcap, 4);
+    };
+    /* Scan upward for a crossing from + to -, which is the stable one: a
+       cap slightly warmer than this radiates more than it absorbs and
+       cools back down. A - to + crossing is a tipping point, not a
+       resting place, and must not be mistaken for one. */
+    const T0 = 80, T1 = 330, N = 250;
+    let prevT = T0, prevF = f(T0);
+    for (let i = 1; i <= N; i++) {
+      const T = T0 + (T1 - T0) * (i / N);
+      const F = f(T);
+      if (prevF > 0 && F <= 0) {
+        let lo = prevT, hi = T;
+        for (let k = 0; k < 60; k++) {
+          const mid = 0.5 * (lo + hi);
+          if (f(mid) > 0) lo = mid; else hi = mid;
+        }
+        const Tcap = 0.5 * (lo + hi);
+        return { Tcap, pPa: PL.co2Psat(Tcap), stable: true };
+      }
+      prevT = T; prevF = F;
+    }
+    /* No stable resting point below 330 K: the cap sublimes away entirely. */
+    return { Tcap: T1, pPa: PL.co2Psat(T1), stable: false, runaway: true };
+  };
+
+  /* Atmospheric escape.
+
+     The standard measure of whether a world can keep a gas is the Jeans
+     parameter, the ratio of gravitational binding to thermal energy at
+     the exobase:
+         lambda = g R m / (k T_exo)
+     Above ~30 a gas is held for the age of the solar system; below ~15
+     it is gone quickly.  This one number explains a great deal: Mars
+     holds CO2 comfortably but cannot hold hydrogen, which is precisely
+     why it lost its water and kept its carbon dioxide.
+
+     On top of thermal escape Mars suffers solar-wind stripping, because
+     it has no global magnetic field.  MAVEN measures a few kg/s today.
+     The point worth taking away is that neither process is remotely fast
+     enough to undo a newly built atmosphere on a human timescale.       */
+  /* Pressure scale over which a CO2 atmosphere becomes optically thick in
+     the thermal infrared. ~400 mbar; at Mars' present 6 mbar the air is
+     nearly transparent, which is why the caps can radiate to space. */
+  const EPS_SCALE = 40000;
+  CM.emissivity = (pPa) => 0.1 + 0.75 * (1 - Math.exp(-pPa / EPS_SCALE));
+
+  const KB = 1.380649e-23, NA = 6.02214076e23;
+
+  CM.jeansLambda = (w, T, molar) => {
+    const m = (molar === undefined ? 0.044 : molar) / NA;
+    const Texo = Math.max(T, 50) * 1.6;          /* exobase runs hotter */
+    return (w.g * w.R * m) / (KB * Texo);
+  };
+
+  /* Plain-language retention verdict for a gas on this world. */
+  CM.retention = (lam) => {
+    if (lam > 30) return { keeps: true, text: 'held for billions of years' };
+    if (lam > 15) return { keeps: true, text: 'leaks away over millions of years' };
+    if (lam > 6) return { keeps: false, text: 'escapes over thousands of years' };
+    return { keeps: false, text: 'escapes almost immediately' };
+  };
+
+  CM.escapeRate = (w, st, T) => {
+    const pPa = PL.pressure(w, st.atm_co2 + (st.atm_n2 || 0));
+    if (pPa <= 0) return 0;
+
+    /* Non-thermal stripping, calibrated to MAVEN's few kg/s at Mars and
+       scaled by the solar wind flux, which falls off as 1/a^2. */
+    const swind = 1 / (w.a_AU * w.a_AU) / (1 / (1.5237 * 1.5237));
+    const strip = 3.0 * swind * Math.pow(Math.max(pPa, 1e-9) / 610, 0.3);
+
+    /* Thermal (Jeans) escape of the bulk gas. */
+    const lam = CM.jeansLambda(w, T, 0.044);
+    const Texo = T * 1.6;
+    const vth = Math.sqrt((2 * KB * Texo) / (0.044 / NA));
+    const nExo = (pPa / (KB * Texo)) * 1e-9;      /* crude exobase density */
+    const flux = (nExo * vth) / (2 * Math.sqrt(Math.PI)) * (1 + lam) * Math.exp(-lam);
+    const jeans = flux * (0.044 / NA) * w.area;
+
+    return strip + (isFinite(jeans) ? jeans : 0);   /* kg/s */
+  };
+
+  /* ---------------- habitability read-outs ---------------- */
+
+  /* Mars' mean temperature hides a big swing. This spreads the global
+     mean into a crude latitude/season/diurnal distribution so we can ask
+     what fraction of the surface ever sees liquid water, rather than
+     only asking about the mean. */
+  CM.warmFraction = (w, Tmean, pPa) => {
+    if (pPa < PL.LIMITS.triplePoint_Pa) return 0;
+    const swing = 60 * Math.pow(610 / Math.max(pPa, 610), 0.25);  /* thick air evens it out */
+    const Tpeak = Tmean + swing;
+    if (Tpeak <= 273.15) return 0;
+    const f = (Tpeak - 273.15) / (2 * swing);
+    return Math.max(0, Math.min(1, f));
+  };
+
+  CM.verdict = (w, snap) => {
+    const L = PL.LIMITS, p = snap.pPa, T = snap.T;
+    const out = [];
+    out.push(p >= L.triplePoint_Pa
+      ? { ok: true, text: `Above the triple point (${(p / 100).toFixed(1)} mbar) — liquid water is at least possible.` }
+      : { ok: false, text: `Below the 6.1 mbar triple point — water can only ever be ice or vapour.` });
+    out.push(p >= L.armstrong_Pa
+      ? { ok: true, text: `Above the Armstrong limit — your own saliva and tears would not boil.` }
+      : { ok: false, text: `Below the Armstrong limit (62.7 mbar) — exposed body fluids boil at body temperature. A pressure suit is still mandatory.` });
+    out.push(T >= 273.15
+      ? { ok: true, text: `Mean surface temperature ${(T - 273.15).toFixed(1)} °C — above freezing.` }
+      : { ok: false, text: `Mean surface temperature ${(T - 273.15).toFixed(1)} °C — still frozen.` });
+    out.push(p >= L.pressureSuitFree_Pa
+      ? { ok: true, text: `Enough pressure to walk around in a breathing mask rather than a suit.` }
+      : { ok: false, text: `Nowhere near the ~300 mbar needed to go without a pressure suit.` });
+    return out;
+  };
+
+  /* Anchor the two tuned coefficients to each world's observed present
+     state, so "do nothing" really does mean nothing changes. */
+  CM.calibrate = (w) => {
+    const st = w.res0;
+    const s0 = CM.surfaceTemp(w, st, {});
+    w._T0 = s0.T;
+    w._p0 = s0.pPa;
+    if (w.res0.cap_co2 > 0 && s0.pPa > 1) {
+      /* pick the one free coefficient so that the cap/atmosphere
+         equilibrium lands exactly on the observed surface pressure */
+      const Tcap = PL.co2Frost(s0.pPa);
+      const irDown = CM.emissivity(s0.pPa) * SIGMA * Math.pow(s0.T, 4);
+      const emitted = SIGMA * Math.pow(Tcap, 4);
+      w._capSolar = Math.max(0, (emitted - irDown) / (w.S0 * (1 - 0.65)));
+    } else {
+      w._capSolar = 0.0088;
+    }
+    return w;
+  };
+  for (const k of Object.keys(PL.WORLDS)) CM.calibrate(PL.WORLDS[k]);
+
+  /* ==================================================================
+     SELF TEST — against observation and published model results
+     ================================================================== */
+  function selfTest(verbose) {
+    const R = [];
+    const log = (n, ok, d) => R.push({ name: n, ok, detail: d });
+    const near = (x, y, tol) => Math.abs(x - y) <= tol;
+    const mars = PL.WORLDS.mars;
+
+    /* 1. Mars' effective temperature from its own albedo and distance */
+    {
+      const Te = PL.Teff(mars.S0, mars.albedo);
+      log('Mars effective temperature', near(Te, 210, 1.5),
+        `${Te.toFixed(1)} K from S=${mars.S0.toFixed(1)} W/m², A=0.25 ` +
+        `(NASA fact sheet gives 209.8 K)`);
+    }
+
+    /* 2. present-day state reproduces the observed pressure and temperature */
+    {
+      const st = Object.assign({}, mars.res);
+      const s = CM.surfaceTemp(mars, st, {});
+      log('Mars today: pressure and temperature', near(s.pPa, 610, 20) && near(s.T, 213, 4),
+        `${(s.pPa / 100).toFixed(2)} mbar (obs 6.1), T = ${s.T.toFixed(1)} K ` +
+        `(obs ~210), greenhouse ${s.gh.toFixed(1)} K (lit. ~5 K)`);
+    }
+
+    /* 3. the CO2 frost point must land on the observed polar cap value */
+    {
+      const Tf = PL.co2Frost(610);
+      log('CO2 frost point at 6 mbar = polar cap temperature', near(Tf, 148, 2),
+        `${Tf.toFixed(1)} K — the caps really do sit at ~148 K`);
+    }
+
+    /* 4. THE key result: a full bar of CO2 still leaves Mars frozen */
+    {
+      const st = { atm_co2: PL.massFor(mars, 1e5) };
+      const s = CM.surfaceTemp(mars, st, {});
+      log('1 bar of pure CO2 still leaves Mars below freezing',
+        s.T > 225 && s.T < 250,
+        `T = ${s.T.toFixed(1)} K = ${(s.T - 273.15).toFixed(0)} °C, albedo risen to ` +
+        `${s.A.toFixed(2)} — matches Forget et al. 2013, who found pure CO2 cannot reach 273 K`);
+    }
+
+    /* 5. total reachable CO2 is tiny — the Jakosky & Edwards conclusion */
+    {
+      const reachable = mars.res.cap_co2 + mars.res.rego_co2 + mars.res.atm_co2;
+      const mbar = reachable / mars.kg_per_mbar;
+      const withCarb = (reachable + mars.res.carb_co2) / mars.kg_per_mbar;
+      log('all reachable CO2 is well under 100 mbar', mbar < 100,
+        `${mbar.toFixed(0)} mbar reachable (${withCarb.toFixed(0)} mbar if you could also ` +
+        `bake every carbonate) — Jakosky & Edwards 2018 reach the same conclusion`);
+    }
+
+    /* 6. energy to sublimate the polar cap, in world arsenals */
+    {
+      const perKg = PL.CO2.cp_ice * (195 - PL.CO2.T_ice) + PL.CO2.L_sub;
+      const E = mars.res.cap_co2 * perKg;
+      const Mt = E / PL.CONST.MT_J;
+      log('subliming the polar cap costs millions of megatons',
+        Mt > 1e6 && Mt < 2e7,
+        `${(Mt / 1e6).toFixed(2)} million Mt = ${(Mt / 1500).toExponential(2)} times the ` +
+        `world's ~1500 Mt arsenal, and that is at 100% coupling`);
+    }
+
+    /* 7. escape is irrelevant on human timescales — the surprise */
+    {
+      const st = { atm_co2: PL.massFor(mars, 1e5) };
+      const s = CM.surfaceTemp(mars, st, {});
+      const rate = CM.escapeRate(mars, st, s.T);
+      const yrs = st.atm_co2 / rate / PL.CONST.YR_S;
+      log('solar wind takes geological time to strip 1 bar', yrs > 1e8,
+        `${rate.toFixed(1)} kg/s → ${yrs.toExponential(2)} years. ` +
+        `"Mars can't hold an atmosphere" is false on any human timescale`);
+    }
+
+    /* 8. the Jeans parameter explains what each world can hold */
+    {
+      const lamCO2 = CM.jeansLambda(mars, 220, 0.044);
+      const lamH = CM.jeansLambda(mars, 220, 0.001);
+      const lamCeres = CM.jeansLambda(PL.WORLDS.ceres, 168, 0.044);
+      log('Jeans parameter: Mars keeps CO2, loses hydrogen, Ceres keeps nothing',
+        lamCO2 > 30 && lamH < 15 && lamCeres < 15,
+        `Mars CO2 lambda = ${lamCO2.toFixed(0)} (${CM.retention(lamCO2).text}), ` +
+        `Mars hydrogen = ${lamH.toFixed(1)} (${CM.retention(lamH).text}) — which is why ` +
+        `Mars lost its water but kept its CO2; Ceres CO2 = ${lamCeres.toFixed(1)}`);
+    }
+
+    /* 9. regolith stays put at present conditions, releases when warm */
+    {
+      const cap = mars.res.rego_co2;
+      const cold = CM.regolithEquil(mars, cap, 610, 210);
+      const warm = CM.regolithEquil(mars, cap, 610, 280);
+      log('regolith holds CO2 when cold, gives it up when warm',
+        cold > 0.9 * cap && warm < 0.4 * cap,
+        `${(100 * cold / cap).toFixed(0)}% retained at 210 K, ` +
+        `${(100 * warm / cap).toFixed(0)}% at 280 K`);
+    }
+
+    /* 10. a PFC factory is far more effective per kilogram than a bomb */
+    {
+      const dT = CM.greenhousePFC(0.1);
+      const mass = PL.massFor(mars, 0.1);
+      log('perfluorocarbons beat bombs per kilogram', dT > 5,
+        `0.1 Pa of optimised PFCs = ${(mass / 1e12).toFixed(1)} Gt gives ${dT.toFixed(1)} K ` +
+        `(Marinova et al. 2005 get ~10 K)`);
+    }
+
+    const pass = R.filter(r => r.ok).length;
+    if (verbose) {
+      for (const r of R) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}  —  ${r.detail}`);
+      console.log(`\n${pass}/${R.length} climate checks passed`);
+    }
+    return { results: R, pass, total: R.length };
+  }
+  CM.selfTest = selfTest;
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = CM;
+  global.CLIMATE = CM;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/* ===== src/sim.js ===== */
+/* =====================================================================
+   sim.js — interventions, and the box model marched through time
+   ---------------------------------------------------------------------
+   Levers you can pull, and what each one physically does:
+
+     nukes     deposit energy.  Only a fraction couples into subliming
+               ice; on a thin-atmosphere world most of the thermal pulse
+               radiates straight back to space.  They also make fallout.
+     mirrors   add intercepted sunlight.  Free forever once built, but
+               the area required scales with the planet's cross-section.
+     PFC       perfluorocarbon factories.  Per kilogram these are by far
+               the most effective thing on the list.
+     comets    deliver volatiles AND energy.  A 10 km ice body carries
+               both more mass and more energy than the entire nuclear
+               option, which is why serious proposals favour them.
+     dust      darken the surface to absorb more sunlight.
+     bake      mine and calcine carbonate rock to release bound CO2.
+               Enormously energy-hungry, but it is where most of the
+               planet's carbon actually is.
+
+   The interesting behaviour is the feedback: warming sublimes polar CO2,
+   which thickens the atmosphere, which warms further.  Whether that runs
+   away or stalls depends entirely on how much CO2 the world has, which
+   is the question the whole simulation exists to answer.
+   ===================================================================== */
+(function (global) {
+  'use strict';
+
+  const PL = global.PLANETS;
+  const CM = global.CLIMATE;
+  const { MT_J, YR_S } = PL.CONST;
+  const S = {};
+
+  /* Cost, in joules, of moving 1 kg of CO2 out of each reservoir. */
+  function energyPerKg(which) {
+    const c = PL.CO2;
+    if (which === 'cap') return c.cp_ice * (195 - c.T_ice) + c.L_sub;
+    if (which === 'rego') return 0.35e6;      /* desorption, weakly bound */
+    if (which === 'carb') return 4.0e6;       /* calcination near 900 K */
+    return c.L_sub;
+  }
+  S.energyPerKg = energyPerKg;
+
+  /* ------------------------------------------------------------------ */
+  function defaultPlan() {
+    return {
+      /* nuclear campaign */
+      nukeOn: false,
+      nukeYieldMt: 1,          /* per device */
+      nukeCount: 10000,        /* devices per year */
+      nukeYears: 10,
+      nukeCoupling: 0.05,      /* fraction of yield that sublimes ice */
+      nukeFission: 0.5,        /* fission fraction, drives fallout */
+      nukeTarget: 'cap',       /* cap | rego | carb */
+
+      /* orbital mirrors: extra intercepted sunlight, as a fraction of
+         the planet's own cross-section */
+      mirrorOn: false,
+      mirrorFrac: 0,
+
+      /* perfluorocarbon factories */
+      pfcOn: false,
+      pfcRate_kg_yr: 0,
+
+      /* volatile delivery */
+      cometOn: false,
+      cometMass_kg: 2.6e14,    /* a 10 km ice body */
+      cometPerYear: 0,
+      cometSpeed_kms: 10,
+      cometVolatileFrac: 0.8,
+
+      /* surface darkening */
+      dust: 0,
+
+      /* carbonate calcination plants, kg of CO2 released per year */
+      bakeOn: false,
+      bakeRate_kg_yr: 0
+    };
+  }
+  S.defaultPlan = defaultPlan;
+
+  /* ------------------------------------------------------------------ */
+  function Sim(worldKey) {
+    /* the plan has to exist before setWorld takes its first snapshot */
+    this.plan = defaultPlan();
+    this.speedYrPerSec = 2;
+    this.paused = false;
+    this.setWorld(worldKey || 'mars');
+  }
+  S.Sim = Sim;
+
+  Sim.prototype.setWorld = function (key) {
+    this.w = PL.WORLDS[key];
+    this.reset();
+  };
+
+  Sim.prototype.reset = function () {
+    const w = this.w;
+    this.t = 0;                       /* years since the campaign began */
+    this.st = Object.assign({ atm_pfc: 0, atm_n2: 0 }, w.res0);
+    this.energyUsed_J = 0;
+    this.nukesFired = 0;
+    this.fissionMt = 0;
+    this.cometsUsed = 0;
+    this.pfcMade_kg = 0;
+    this.escaped_kg = 0;
+    this.history = [];
+    this.events = [];
+    this.peak = { p: 0, T: 0 };
+    this.record(true);
+  };
+
+  Sim.prototype.log = function (msg, tone) {
+    this.events.unshift({ t: this.t, msg, tone: tone || 'info' });
+    if (this.events.length > 40) this.events.pop();
+  };
+
+  /* One snapshot of the derived state. */
+  Sim.prototype.snapshot = function () {
+    const w = this.w, p = this.plan;
+    const opts = {
+      mirrorBoost: p.mirrorOn ? 1 + p.mirrorFrac : 1,
+      dust: p.dust
+    };
+    const s = CM.surfaceTemp(w, this.st, opts);
+    s.escape_kgs = CM.escapeRate(w, this.st, s.T);
+    s.warmFrac = CM.warmFraction(w, s.T, s.pPa);
+    s.lambdaCO2 = CM.jeansLambda(w, s.T, 0.044);
+    s.lambdaH2 = CM.jeansLambda(w, s.T, 0.002);
+    s.frost = PL.co2Frost(Math.max(s.pPa, 1e-6));
+    s.mbar = s.pPa / 100;
+    s.bar = s.pPa / 1e5;
+    s.C = s.T - 273.15;
+    return s;
+  };
+
+  Sim.prototype.record = function (force) {
+    const s = this.snapshot();
+    const last = this.history[this.history.length - 1];
+    if (force || !last || this.t - last.t > 0.5) {
+      this.history.push({ t: this.t, p: s.pPa, T: s.T, frac: s.warmFrac });
+      if (this.history.length > 4000) this.history.shift();
+    }
+    if (s.pPa > this.peak.p) this.peak.p = s.pPa;
+    if (s.T > this.peak.T) this.peak.T = s.T;
+    return s;
+  };
+
+  /* ------------------------------------------------------------------
+     Advance by dt years.
+     ------------------------------------------------------------------ */
+  Sim.prototype.step = function (dt) {
+    if (dt <= 0) return;
+    const w = this.w, p = this.plan, st = this.st;
+    let s = this.snapshot();
+
+    /* ---- energy-driven release (nukes, calcination) ---- */
+    if (p.nukeOn && this.t < p.nukeYears) {
+      const devices = p.nukeCount * dt;
+      const E = devices * p.nukeYieldMt * MT_J;
+      this.nukesFired += devices;
+      this.fissionMt += devices * p.nukeYieldMt * p.nukeFission;
+      this.energyUsed_J += E;
+      this.release(E * p.nukeCoupling, p.nukeTarget);
+    }
+    if (p.bakeOn && p.bakeRate_kg_yr > 0) {
+      const want = p.bakeRate_kg_yr * dt;
+      const got = Math.min(want, st.carb_co2);
+      st.carb_co2 -= got; st.atm_co2 += got;
+      this.energyUsed_J += got * energyPerKg('carb');
+    }
+
+    /* ---- manufactured greenhouse gas ---- */
+    if (p.pfcOn && p.pfcRate_kg_yr > 0) {
+      const m = p.pfcRate_kg_yr * dt;
+      st.atm_pfc += m; this.pfcMade_kg += m;
+    }
+
+    /* ---- delivered volatiles ---- */
+    if (p.cometOn && p.cometPerYear > 0) {
+      const n = p.cometPerYear * dt;
+      this.cometsUsed += n;
+      const mass = n * p.cometMass_kg;
+      const v = p.cometSpeed_kms * 1000;
+      const E = 0.5 * mass * v * v;
+      this.energyUsed_J += E;
+      /* the impact energy also sublimes native ice */
+      this.release(E * 0.3, 'cap');
+      st.atm_h2o += mass * p.cometVolatileFrac;
+      st.atm_co2 += mass * (1 - p.cometVolatileFrac) * 0.5;
+    }
+
+    /* ---- the feedback: recompute, then let reservoirs seek equilibrium ---- */
+    s = this.snapshot();
+
+    /* Polar CO2 ice exchanges with the atmosphere through the frost
+       point.  Warmer than the frost point and the cap sublimes; colder
+       and the atmosphere snows out onto it.  Sunlight does the work,
+       so the rate is set by the energy the cap absorbs. */
+    /* While CO2 ice survives, the cap pins the pressure to the vapour
+       curve. Anything you put into the air over and above that simply
+       snows back out — which is why a partial bombing campaign
+       accomplishes nothing permanent. */
+    if (st.cap_co2 > 0) {
+      const opts = { mirrorBoost: p.mirrorOn ? 1 + p.mirrorFrac : 1, dust: p.dust };
+      const eq = CM.capEquilibrium(w, st, opts);
+      const targetAtm = PL.massFor(w, eq.pPa);
+      const relax = Math.min(1, dt / 30);          /* decades to settle */
+      let move = (targetAtm - st.atm_co2) * relax; /* + = cap sublimes */
+      move = Math.max(-st.atm_co2 * 0.9, Math.min(move, st.cap_co2));
+      st.cap_co2 -= move; st.atm_co2 += move;
+      if (st.cap_co2 <= 0) {
+        st.cap_co2 = 0;
+        this.log('The polar CO₂ cap is completely gone. From here the atmosphere is finally free — nothing is left to snow back out.', 'good');
+      }
+    }
+
+    /* Regolith adsorption relaxes toward its isotherm over ~decades. */
+    if (w.res0.rego_co2 > 0) {
+      const capacity = w.res0.rego_co2;
+      const eq = CM.regolithEquil(w, capacity, s.pPa, s.T);
+      const held = st.rego_co2;
+      const move = (held - eq) * Math.min(1, dt / 50);
+      st.rego_co2 -= move; st.atm_co2 += move;
+    }
+
+    /* ---- escape ---- */
+    const lost = s.escape_kgs * dt * YR_S;
+    const take = Math.min(lost, st.atm_co2);
+    st.atm_co2 -= take; this.escaped_kg += take;
+
+    for (const k of ['atm_co2', 'cap_co2', 'rego_co2', 'carb_co2', 'atm_pfc', 'atm_h2o']) {
+      if (!(st[k] >= 0)) st[k] = 0;
+    }
+
+    this.t += dt;
+    this.record();
+  };
+
+  /* Put `E` joules into a reservoir and move what it can free. */
+  Sim.prototype.release = function (E, which) {
+    const st = this.st;
+    const key = which === 'rego' ? 'rego_co2' : which === 'carb' ? 'carb_co2' : 'cap_co2';
+    const perKg = energyPerKg(which);
+    const can = E / perKg;
+    const got = Math.min(can, st[key]);
+    st[key] -= got;
+    st.atm_co2 += got;
+    if (got < can && st[key] <= 0 && !this._warned) {
+      this._warned = true;
+      this.log(`The ${which === 'cap' ? 'polar cap' : which === 'rego' ? 'regolith' : 'carbonate'} reservoir is exhausted — extra energy now has nothing left to release.`, 'bad');
+    }
+    return got;
+  };
+
+  /* ------------------------------------------------------------------
+     What it would take, worked backwards from a pressure target.
+     ------------------------------------------------------------------ */
+  S.requirement = function (w, plan, targetPa) {
+    const need_kg = PL.massFor(w, targetPa) - w.res0.atm_co2;
+    const avail = w.res0.cap_co2 + w.res0.rego_co2;
+    const availAll = avail + w.res0.carb_co2;
+    const perKg = energyPerKg(plan.nukeTarget);
+    const E = (need_kg * perKg) / Math.max(plan.nukeCoupling, 1e-6);
+    const Mt = E / MT_J;
+    return {
+      need_kg, avail, availAll, E, Mt,
+      arsenals: Mt / 1500,
+      possible: need_kg <= availAll,
+      possibleEasy: need_kg <= avail,
+      /* comets instead */
+      comets: need_kg / (plan.cometMass_kg * plan.cometVolatileFrac)
+    };
+  };
+
+  /* Fallout from the fission yield.  Atmospheric weapons testing put
+     about 189 Mt of fission into the environment and produced roughly
+     622 PBq of caesium-137, so ~3.3 PBq per fission megaton. */
+  S.fallout = function (w, fissionMt) {
+    const cs137_PBq = fissionMt * 3.29;
+    const perArea = (cs137_PBq * 1e15) / w.area;              /* Bq/m^2 */
+    return {
+      cs137_PBq, perArea,
+      chernobylZones: perArea / 5.55e5    /* 15 Ci/km^2 exclusion threshold */
+    };
+  };
+
+  /* Mirror area needed for a given boost, and its mass at 10 g/m^2. */
+  S.mirrorSpec = function (w, frac) {
+    const area = frac * w.cross;
+    return {
+      area, radius: Math.sqrt(area / Math.PI),
+      mass_kg: area * 0.01
+    };
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = S;
+  global.MARSSIM = S;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/* ===== src/app.js ===== */
+/* =====================================================================
+   app.js — controls, charts and the running verdict
+   ===================================================================== */
+(function () {
+  'use strict';
+  const PL = window.PLANETS, CM = window.CLIMATE, MS = window.MARSSIM;
+  const $ = (id) => document.getElementById(id);
+  const sim = new MS.Sim('mars');
+
+  /* ------------------------------ helpers ------------------------------ */
+  const fmt = (x, d) => {
+    if (!isFinite(x)) return '∞';
+    const a = Math.abs(x);
+    if (a === 0) return '0';
+    if (a < 1e-3 || a >= 1e6) return x.toExponential(d === undefined ? 2 : d);
+    return x.toFixed(d === undefined ? (a < 10 ? 2 : a < 1000 ? 1 : 0) : d);
+  };
+  const mass = (kg) => {
+    if (kg >= 1e18) return fmt(kg / 1e18) + ' Eg';
+    if (kg >= 1e15) return fmt(kg / 1e12) + ' Gt';
+    if (kg >= 1e9) return fmt(kg / 1e9) + ' Mt';
+    if (kg >= 1e3) return fmt(kg / 1e3) + ' t';
+    return fmt(kg) + ' kg';
+  };
+  const years = (y) => {
+    if (y < 1) return fmt(y * 365) + ' days';
+    if (y < 1e4) return fmt(y, 0) + ' yr';
+    if (y < 1e6) return fmt(y / 1e3) + ' kyr';
+    if (y < 1e9) return fmt(y / 1e6) + ' Myr';
+    return fmt(y / 1e9) + ' Gyr';
+  };
+  const row = (l, v, c) => `<div class="row"><label>${l}</label><span class="v ${c || ''}">${v}</span></div>`;
+  const logMap = (v, lo, hi) => lo * Math.pow(hi / lo, v / 1000);
+  const logInv = (x, lo, hi) => 1000 * Math.log(x / lo) / Math.log(hi / lo);
+
+  /* ------------------------------ scenarios ---------------------------- */
+  const SCENARIOS = {
+    baseline: { name: 'Leave it alone', apply: (p) => { } },
+    musk: {
+      name: "Musk's idea: nuke the poles",
+      apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 10; p.nukeCount = 1000; p.nukeYears = 10; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; }
+    },
+    arsenal: {
+      name: "Fire the whole world arsenal",
+      apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 1; p.nukeCount = 1500; p.nukeYears = 1; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; }
+    },
+    allout: {
+      name: 'Build and fire a million arsenals',
+      apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 100; p.nukeCount = 200000; p.nukeYears = 100; p.nukeCoupling = 0.1; p.nukeTarget = 'cap'; }
+    },
+    mirrorTip: {
+      name: 'Mirrors: tip the polar cap',
+      apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 0.12; }
+    },
+    pfc: {
+      name: 'Perfluorocarbon factories',
+      apply: (p) => { p.pfcOn = true; p.pfcRate_kg_yr = 2e11; }
+    },
+    comets: {
+      name: 'Redirect comets for 500 years',
+      apply: (p) => { p.cometOn = true; p.cometMass_kg = 2.6e14; p.cometPerYear = 2; }
+    },
+    everything: {
+      name: 'Everything at once, for a millennium',
+      apply: (p) => {
+        p.mirrorOn = true; p.mirrorFrac = 0.25;
+        p.pfcOn = true; p.pfcRate_kg_yr = 5e11;
+        p.cometOn = true; p.cometPerYear = 2;
+        p.bakeOn = true; p.bakeRate_kg_yr = 2e14;
+        p.dust = 0.05;
+      }
+    }
+  };
+
+  /* ------------------------------ controls ----------------------------- */
+  $('world').innerHTML = Object.keys(PL.WORLDS)
+    .map((k) => `<option value="${k}">${PL.WORLDS[k].name}</option>`).join('');
+  $('scenario').innerHTML = Object.keys(SCENARIOS)
+    .map((k) => `<option value="${k}">${SCENARIOS[k].name}</option>`).join('');
+
+  $('world').onchange = (e) => { sim.setWorld(e.target.value); syncAll(); };
+  $('scenario').onchange = (e) => {
+    const keep = { speed: sim.speedYrPerSec };
+    sim.plan = MS.defaultPlan();
+    SCENARIOS[e.target.value].apply(sim.plan);
+    sim.reset();
+    sim.speedYrPerSec = keep.speed;
+    syncAll();
+  };
+  $('play').onclick = () => {
+    sim.paused = !sim.paused;
+    $('play').textContent = sim.paused ? '▶ Run' : '❚❚ Pause';
+  };
+  $('reset').onclick = () => { sim.reset(); syncAll(); };
+  $('speed').oninput = (e) => { sim.speedYrPerSec = logMap(+e.target.value, 0.05, 5000); syncHeader(); };
+
+  function chip(id, get, set) {
+    const el = $(id);
+    el.onclick = () => { set(!get()); syncAll(); };
+    return () => { el.classList.toggle('on', get()); el.textContent = get() ? 'on' : 'off'; };
+  }
+  const chipSync = [
+    chip('nukeOn', () => sim.plan.nukeOn, (v) => sim.plan.nukeOn = v),
+    chip('mirOn', () => sim.plan.mirrorOn, (v) => sim.plan.mirrorOn = v),
+    chip('pfcOn', () => sim.plan.pfcOn, (v) => sim.plan.pfcOn = v),
+    chip('comOn', () => sim.plan.cometOn, (v) => sim.plan.cometOn = v),
+    chip('bakeOn', () => sim.plan.bakeOn, (v) => sim.plan.bakeOn = v)
+  ];
+
+  const sliders = [
+    ['nY', (v) => sim.plan.nukeYieldMt = logMap(v, 0.001, 100), () => logInv(sim.plan.nukeYieldMt, 0.001, 100)],
+    ['nC', (v) => sim.plan.nukeCount = Math.round(logMap(v, 1, 1e7)), () => logInv(sim.plan.nukeCount, 1, 1e7)],
+    ['nT', (v) => sim.plan.nukeYears = Math.round(logMap(v, 1, 1e5)), () => logInv(sim.plan.nukeYears, 1, 1e5)],
+    ['nK', (v) => sim.plan.nukeCoupling = v / 1000, () => sim.plan.nukeCoupling * 1000],
+    ['nF', (v) => sim.plan.nukeFission = v / 100, () => sim.plan.nukeFission * 100],
+    ['mF', (v) => sim.plan.mirrorFrac = v / 1000 * 2, () => sim.plan.mirrorFrac / 2 * 1000],
+    ['pR', (v) => sim.plan.pfcRate_kg_yr = v === 0 ? 0 : logMap(v, 1e6, 1e14), () => logInv(Math.max(sim.plan.pfcRate_kg_yr, 1e6), 1e6, 1e14)],
+    ['cD', (v) => sim.plan.cometMass_kg = (Math.PI / 6) * Math.pow(logMap(v, 100, 5e4), 3) * 500, () => logInv(Math.cbrt(sim.plan.cometMass_kg / 500 / (Math.PI / 6)), 100, 5e4)],
+    ['cN', (v) => sim.plan.cometPerYear = v === 0 ? 0 : logMap(v, 0.001, 100), () => logInv(Math.max(sim.plan.cometPerYear, 0.001), 0.001, 100)],
+    ['bR', (v) => sim.plan.bakeRate_kg_yr = v === 0 ? 0 : logMap(v, 1e9, 1e16), () => logInv(Math.max(sim.plan.bakeRate_kg_yr, 1e9), 1e9, 1e16)],
+    ['dust', (v) => sim.plan.dust = -v / 100, () => -sim.plan.dust * 100]
+  ];
+  for (const [id, set] of sliders) $(id).oninput = (e) => { set(+e.target.value); syncPanels(); };
+  $('nTarget').onchange = (e) => { sim.plan.nukeTarget = e.target.value; syncPanels(); };
+
+  document.querySelectorAll('.sec>h3').forEach((h) => {
+    h.onclick = () => h.parentElement.classList.toggle('closed');
+  });
+
+  /* ------------------------------ panels ------------------------------- */
+  function syncHeader() {
+    $('speedV').textContent = years(sim.speedYrPerSec) + '/s';
+    $('speed').value = Math.round(logInv(sim.speedYrPerSec, 0.05, 5000));
+  }
+
+  function syncPanels() {
+    const p = sim.plan, w = sim.w;
+    for (const f of chipSync) f();
+    for (const [id, , get] of sliders) $(id).value = Math.round(Math.max(0, Math.min(1000, get())));
+    $('nTarget').value = p.nukeTarget;
+
+    $('nYV').textContent = p.nukeYieldMt >= 1 ? fmt(p.nukeYieldMt) + ' Mt' : fmt(p.nukeYieldMt * 1000) + ' kt';
+    $('nCV').textContent = fmt(p.nukeCount, 0) + '/yr';
+    $('nTV').textContent = fmt(p.nukeYears, 0) + ' yr';
+    $('nKV').textContent = (p.nukeCoupling * 100).toFixed(1) + '%';
+    $('nFV').textContent = (p.nukeFission * 100).toFixed(0) + '%';
+
+    const totalMt = p.nukeYieldMt * p.nukeCount * p.nukeYears;
+    const fo = MS.fallout(w, totalMt * p.nukeFission);
+    $('nukeNote').innerHTML =
+      `Campaign total <b>${fmt(totalMt)} Mt</b> = <b>${fmt(totalMt / 1500)}×</b> the world's ` +
+      `present ~1500 Mt arsenal.<br>` +
+      `Only a fraction of a nuclear yield ever reaches the ice — most of the thermal pulse ` +
+      `radiates straight back to space through a thin atmosphere.` +
+      (totalMt > 0 ? `<br><span class="err">Fallout:</span> ${fmt(fo.cs137_PBq)} PBq of Cs-137, ` +
+        `${fmt(fo.perArea)} Bq/m² spread over the whole planet = <b>${fmt(fo.chernobylZones)}×</b> ` +
+        `the Chernobyl exclusion-zone threshold, everywhere.` : '');
+
+    $('mFV').textContent = '+' + (p.mirrorFrac * 100).toFixed(1) + '%';
+    const spec = MS.mirrorSpec(w, p.mirrorFrac);
+    $('mirNote').innerHTML = p.mirrorFrac > 0
+      ? `A mirror <b>${fmt(2 * spec.radius / 1000, 0)} km</b> across, ${mass(spec.mass_kg)} of foil at 10 g/m². ` +
+        `Once built it works forever and leaves nothing radioactive behind.`
+      : `Sunlight is free and permanent. The catch is the area: it scales with the planet's own disc.`;
+
+    $('pRV').textContent = mass(p.pfcRate_kg_yr) + '/yr';
+    $('pfcNote').innerHTML =
+      `Perfluorocarbons are thousands of times more effective per molecule than CO₂ and last ` +
+      `for millennia. Marinova et al. (2005) found ~0.1 Pa of an optimised mixture gives about ` +
+      `10 K — that is ${mass(PL.massFor(w, 0.1))}, against the ${mass(w.res0.cap_co2)} of ice ` +
+      `the bombs are trying to move.`;
+
+    const dia = Math.cbrt(p.cometMass_kg / 500 / (Math.PI / 6));
+    const Ec = 0.5 * p.cometMass_kg * Math.pow(p.cometSpeed_kms * 1000, 2);
+    $('cDV').textContent = fmt(dia / 1000) + ' km';
+    $('cNV').textContent = fmt(p.cometPerYear) + '/yr';
+    $('comNote').innerHTML =
+      `Each body carries ${mass(p.cometMass_kg)} of volatiles and lands with ` +
+      `<b>${fmt(Ec / PL.CONST.MT_J)} Mt</b> of kinetic energy — ${fmt(Ec / (1500 * PL.CONST.MT_J))}× ` +
+      `the world arsenal, per impact. Comets add matter; bombs only move it around.`;
+
+    $('dustV').textContent = (sim.plan.dust >= 0 ? '−' : '+') + fmt(Math.abs(sim.plan.dust) * 100, 0) + '% albedo';
+    $('bRV').textContent = mass(p.bakeRate_kg_yr) + '/yr';
+  }
+
+  function syncAll() { syncHeader(); syncPanels(); update(true); }
+
+  /* ------------------------------ readouts ----------------------------- */
+  function update(force) {
+    const w = sim.w, s = sim.snapshot(), st = sim.st;
+
+    /* headline verdict */
+    const reach = st.cap_co2 + st.rego_co2 + st.atm_co2;
+    let ans, tone;
+    if (s.pPa >= PL.LIMITS.pressureSuitFree_Pa && s.T >= 273.15) { ans = 'Habitable without a suit.'; tone = 'var(--green)'; }
+    else if (s.T >= 273.15) { ans = 'Above freezing, but far too thin to breathe.'; tone = 'var(--amber)'; }
+    else if (s.pPa >= PL.LIMITS.armstrong_Pa) { ans = 'Thicker, but still frozen solid.'; tone = 'var(--amber)'; }
+    else { ans = 'No. Still a near-vacuum, still frozen.'; tone = 'var(--red)'; }
+
+    $('verdict').innerHTML =
+      `<div class="lab">after ${years(sim.t)} of effort</div>` +
+      `<div class="ans" style="color:${tone}">${ans}</div>` +
+      `<div class="sub">${fmt(s.pPa / 100)} mbar and ${fmt(s.C, 1)} °C. Earth is 1013 mbar and +15 °C; ` +
+      `the summit of Everest is 337 mbar.</div>`;
+
+    $('checks').innerHTML = CM.verdict(w, s)
+      .map((c) => `<div class="check ${c.ok ? 'ok' : 'no'}"><i>${c.ok ? '✓' : '✗'}</i><span>${c.text}</span></div>`)
+      .join('');
+
+    $('stats').innerHTML = [
+      ['pressure', fmt(s.pPa / 100), 'mbar'],
+      ['temperature', fmt(s.C, 1), '°C'],
+      ['vs Earth', fmt(100 * s.pPa / PL.LIMITS.earthSeaLevel_Pa, 2) + '%', 'of sea level'],
+      ['liquid water', s.warmFrac > 0 ? fmt(s.warmFrac * 100, 1) + '%' : 'none', 'of the surface'],
+      ['energy spent', fmt(sim.energyUsed_J / PL.CONST.MT_J), 'megatons'],
+      ['= world arsenals', fmt(sim.energyUsed_J / PL.CONST.MT_J / 1500), '× 1500 Mt']
+    ].map(([k, n, u]) => `<div><div class="k">${k}</div><div class="n">${n}</div><div class="u">${u}</div></div>`).join('');
+
+    $('atmos').innerHTML =
+      row('surface pressure', fmt(s.pPa / 100) + ' mbar', 'hi') +
+      row('mean temperature', fmt(s.C, 1) + ' °C', 'hi') +
+      row('effective temperature', fmt(s.Teff - 273.15, 1) + ' °C') +
+      row('greenhouse warming', '+' + fmt(s.gh, 1) + ' K', 'cy') +
+      row('bond albedo', fmt(s.A, 3)) +
+      row('CO₂ frost point', fmt(s.frost, 1) + ' K') +
+      row('escape rate', fmt(s.escape_kgs, 1) + ' kg/s') +
+      row('half gone in', years((st.atm_co2 / 2) / Math.max(s.escape_kgs, 1e-9) / PL.CONST.YR_S), 'ok') +
+      row('CO₂ Jeans λ', fmt(s.lambdaCO2, 0) + ' — ' + CM.retention(s.lambdaCO2).text,
+        CM.retention(s.lambdaCO2).keeps ? 'ok' : 'bad') +
+      row('hydrogen λ', fmt(s.lambdaH2, 1) + ' — ' + CM.retention(s.lambdaH2).text,
+        CM.retention(s.lambdaH2).keeps ? 'ok' : 'bad') +
+      `<div class="note">The Jeans parameter is why Mars looks the way it does: it holds CO₂ for
+       billions of years but cannot hold hydrogen at all, so it kept its carbon dioxide and lost
+       its water.</div>`;
+
+    $('worldout').innerHTML =
+      row('gravity', fmt(w.g, 2) + ' m/s²') +
+      row('radius', fmt(w.R / 1000, 0) + ' km') +
+      row('escape velocity', fmt(w.v_esc / 1000, 2) + ' km/s') +
+      row('sunlight', fmt(w.S0, 0) + ' W/m²', 'cy') +
+      row('&nbsp;&nbsp;vs Earth', fmt(100 * w.S0 / 1361, 0) + '%') +
+      row('1 mbar of air needs', mass(w.kg_per_mbar)) +
+      `<div class="note">${w.notes}<br><br><b>Model confidence:</b> ${w.confidence}</div>`;
+
+    /* reservoirs */
+    const R = [
+      ['in the air', st.atm_co2, 'var(--cyan)'],
+      ['polar ice', st.cap_co2, 'var(--ink)'],
+      ['adsorbed in regolith', st.rego_co2, 'var(--rust)'],
+      ['locked in carbonate rock', st.carb_co2, 'var(--dim2)']
+    ];
+    const tot = R.reduce((a, r) => a + r[1], 0) || 1;
+    $('reservoirs').innerHTML = R.map(([k, v, c]) =>
+      `<div class="res"><div class="lab"><span>${k}</span>
+        <em>${mass(v)} · ${fmt(v / w.kg_per_mbar, 1)} mbar</em></div>
+       <div class="bar"><i style="width:${(100 * v / tot).toFixed(2)}%;background:${c}"></i></div></div>`).join('') +
+      `<div class="note">Everything you could actually reach adds up to
+       <b>${fmt((st.atm_co2 + st.cap_co2 + st.rego_co2) / w.kg_per_mbar, 0)} mbar</b>.
+       Even baking every carbonate on the planet only gets you
+       <b>${fmt(tot / w.kg_per_mbar, 0)} mbar</b>. This is the wall the whole idea runs into:
+       Mars does not have enough carbon dioxide, at any price.</div>`;
+
+    /* requirement calculator */
+    const targets = [
+      ['liquid water possible (6.1 mbar)', PL.LIMITS.triplePoint_Pa],
+      ['no pressure suit needed (300 mbar)', PL.LIMITS.pressureSuitFree_Pa],
+      ['Earth sea level (1013 mbar)', PL.LIMITS.earthSeaLevel_Pa]
+    ];
+    $('requirement').innerHTML = '<div class="note" style="margin:0 0 8px">' +
+      `Working backwards from a pressure target, at your current ${(sim.plan.nukeCoupling * 100).toFixed(1)}% coupling:</div>` +
+      targets.map(([label, pa]) => {
+        const r = MS.requirement(w, sim.plan, pa);
+        if (r.need_kg <= 0) return row(label, 'already there', 'ok');
+        return row(label,
+          r.possible
+            ? `${fmt(r.Mt)} Mt = ${fmt(r.arsenals)} arsenals`
+            : `impossible — the CO₂ does not exist`,
+          r.possible ? 'hi' : 'bad');
+      }).join('') +
+      `<div class="note">A "world arsenal" here is 1500 Mt, roughly every nuclear weapon on Earth.
+       Comets are the honest alternative: one 10 km ice body delivers
+       ${mass(2.6e14)} of volatiles and lands with thousands of arsenals' worth of energy —
+       it adds matter instead of merely rearranging it.</div>`;
+
+    $('log').innerHTML = sim.events.map((e) =>
+      `<div class="${e.tone}"><time>${years(e.t)}</time>${e.msg}</div>`).join('')
+      || '<div style="color:var(--dim2)">Nothing has happened yet.</div>';
+
+    drawPlanet(s);
+    drawChart($('chartP'), sim.history, (h) => h.p / 100, 'mbar', 'var(--cyan)', true);
+    drawChart($('chartT'), sim.history, (h) => h.T - 273.15, '°C', 'var(--rust)', false, 0);
+  }
+
+  $('about').innerHTML = `
+    <div class="note" style="margin:0">
+    A global-mean box model, not a GCM. It is calibrated so that an untouched Mars sits exactly
+    at its observed 6.109 mbar and 216 K, and so that a full bar of CO₂ reproduces the published
+    result that pure CO₂ <i>cannot</i> push Mars above freezing.<br><br>
+    <b>Sources</b><br>
+    · Jakosky &amp; Edwards 2018, <i>Inventory of CO₂ available for terraforming Mars</i>,
+      Nature Astronomy 2, 634 — the volatile inventory, and the conclusion that it is not enough.<br>
+    · Forget et al. 2013, Icarus 222, 81 — the ceiling on CO₂ greenhouse warming.<br>
+    · Marinova et al. 2005, JGR 110, E03002 — perfluorocarbon warming.<br>
+    · MAVEN escape rates; NASA planetary fact sheets.<br><br>
+    <b>What it does not model:</b> atmospheric chemistry, dust storms, regional climate, the
+    biology, or where the nitrogen and oxygen would come from. Venus and Titan are listed for
+    contrast but are outside the parameterisation's range.
+    </div>`;
+
+  /* ------------------------------ drawing ------------------------------ */
+  function fit(c) {
+    const r = c.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2);
+    const w = Math.max(2, Math.round(r.width * d)), h = Math.max(2, Math.round((c.height || 200)));
+    if (c.width !== w) c.width = w;
+    return { x: c.getContext('2d'), W: w, H: c.height, d };
+  }
+
+  function drawPlanet(s) {
+    const { x, W, H } = fit($('planet'));
+    x.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.34;
+
+    /* atmosphere haze grows with pressure */
+    const pf = Math.min(1, Math.log10(Math.max(s.pPa, 1) / 100) / 3);
+    if (pf > 0) {
+      const g = x.createRadialGradient(cx, cy, R * 0.96, cx, cy, R * (1.02 + 0.30 * pf));
+      g.addColorStop(0, `rgba(150,190,235,${0.30 * pf + 0.05})`);
+      g.addColorStop(1, 'rgba(150,190,235,0)');
+      x.fillStyle = g;
+      x.beginPath(); x.arc(cx, cy, R * (1.02 + 0.30 * pf), 0, 7); x.fill();
+    }
+
+    /* the surface, warming from rust toward damp blue-green */
+    const warm = Math.max(0, Math.min(1, (s.T - 220) / 60));
+    const g2 = x.createRadialGradient(cx - R * 0.3, cy - R * 0.35, R * 0.1, cx, cy, R);
+    g2.addColorStop(0, `rgb(${Math.round(215 - 80 * warm)},${Math.round(120 + 60 * warm)},${Math.round(75 + 70 * warm)})`);
+    g2.addColorStop(1, `rgb(${Math.round(110 - 50 * warm)},${Math.round(52 + 40 * warm)},${Math.round(32 + 45 * warm)})`);
+    x.fillStyle = g2;
+    x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fill();
+
+    /* polar caps, sized by how much CO2 ice is left */
+    const capFrac = sim.w.res0.cap_co2 > 0 ? sim.st.cap_co2 / sim.w.res0.cap_co2 : 0;
+    if (capFrac > 0.001) {
+      x.fillStyle = 'rgba(245,250,255,0.92)';
+      for (const sgn of [-1, 1]) {
+        x.save(); x.beginPath(); x.arc(cx, cy, R, 0, 7); x.clip();
+        x.beginPath();
+        x.ellipse(cx, cy + sgn * R * 0.94, R * 0.72 * Math.pow(capFrac, 0.4), R * 0.30 * Math.pow(capFrac, 0.5), 0, 0, 7);
+        x.fill(); x.restore();
+      }
+    }
+    /* terminator */
+    const sh = x.createRadialGradient(cx - R * 0.4, cy - R * 0.4, R * 0.2, cx, cy, R * 1.25);
+    sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.72)');
+    x.fillStyle = sh; x.beginPath(); x.arc(cx, cy, R, 0, 7); x.fill();
+
+    x.fillStyle = 'rgba(176,149,130,0.9)';
+    x.font = '11px ui-monospace,monospace';
+    x.fillText(`${sim.w.name} · t + ${years(sim.t)}`, 12, 18);
+    if (capFrac <= 0.001 && sim.w.res0.cap_co2 > 0) {
+      x.fillStyle = '#ffb347';
+      x.fillText('polar CO₂ cap: gone', 12, 34);
+    }
+  }
+
+  function drawChart(c, hist, pick, unit, colour, log, zeroLine) {
+    const { x, W, H } = fit(c);
+    x.clearRect(0, 0, W, H);
+    if (hist.length < 2) return;
+    const pad = { l: 46, r: 8, t: 8, b: 18 };
+    const xs = hist.map((h) => h.t), ys = hist.map(pick);
+    const t0 = xs[0], t1 = Math.max(xs[xs.length - 1], t0 + 1e-6);
+    let lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys);
+    if (log) { lo = Math.max(lo, 1e-4); hi = Math.max(hi, lo * 1.5); }
+    if (hi - lo < 1e-9) { hi = lo + 1; }
+    const pd = (hi - lo) * 0.12; lo -= pd; hi += pd;
+    const X = (t) => pad.l + ((t - t0) / (t1 - t0)) * (W - pad.l - pad.r);
+    const Y = (v) => {
+      const f = log ? (Math.log10(Math.max(v, 1e-4)) - Math.log10(Math.max(lo, 1e-4))) / (Math.log10(hi) - Math.log10(Math.max(lo, 1e-4)))
+        : (v - lo) / (hi - lo);
+      return H - pad.b - f * (H - pad.t - pad.b);
+    };
+    x.strokeStyle = 'rgba(176,149,130,0.13)'; x.lineWidth = 1;
+    x.font = '9.5px ui-monospace,monospace'; x.fillStyle = 'rgba(176,149,130,0.7)';
+    for (let i = 0; i <= 4; i++) {
+      const v = log ? Math.pow(10, Math.log10(Math.max(lo, 1e-4)) + (Math.log10(hi) - Math.log10(Math.max(lo, 1e-4))) * i / 4)
+        : lo + (hi - lo) * i / 4;
+      const y = Y(v);
+      x.beginPath(); x.moveTo(pad.l, y); x.lineTo(W - pad.r, y); x.stroke();
+      x.fillText(fmt(v, 1), 4, y + 3);
+    }
+    if (zeroLine !== undefined && zeroLine > lo && zeroLine < hi) {
+      x.strokeStyle = 'rgba(90,230,168,0.45)'; x.setLineDash([4, 4]);
+      x.beginPath(); x.moveTo(pad.l, Y(zeroLine)); x.lineTo(W - pad.r, Y(zeroLine)); x.stroke();
+      x.setLineDash([]);
+      x.fillStyle = 'rgba(90,230,168,0.8)'; x.fillText('freezing', W - pad.r - 48, Y(zeroLine) - 4);
+    }
+    x.beginPath();
+    hist.forEach((h, i) => { const px = X(h.t), py = Y(pick(h)); i ? x.lineTo(px, py) : x.moveTo(px, py); });
+    x.strokeStyle = colour; x.lineWidth = 1.8; x.stroke();
+    x.fillStyle = 'rgba(176,149,130,0.7)';
+    x.fillText(years(t1), W - pad.r - 40, H - 5);
+    x.fillText(unit, pad.l + 2, pad.t + 8);
+  }
+
+  /* ------------------------------ loop --------------------------------- */
+  let last = performance.now(), acc = 0;
+  function loop(now) {
+    const dtReal = Math.min((now - last) / 1000, 0.1); last = now;
+    if (!sim.paused && !document.hidden) {
+      const dt = sim.speedYrPerSec * dtReal;
+      /* sub-step so fast-forward stays accurate */
+      const n = Math.min(200, Math.max(1, Math.ceil(dt / 25)));
+      for (let i = 0; i < n; i++) sim.step(dt / n);
+    }
+    acc += dtReal;
+    if (acc > 0.12) { acc = 0; update(); }
+    requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('resize', () => update(true));
+  sim.speedYrPerSec = 2;
+  syncAll();
+  requestAnimationFrame(loop);
+
+  window.__TF = {
+    sim, PL, CM, MS,
+    selfTest: () => CM.selfTest(true),
+    snapshot: () => {
+      const s = sim.snapshot();
+      return { t: sim.t, mbar: s.pPa / 100, C: s.C, cap: sim.st.cap_co2, atm: sim.st.atm_co2,
+        energyMt: sim.energyUsed_J / PL.CONST.MT_J };
+    },
+    setScenario: (k) => { $('scenario').value = k; $('scenario').onchange({ target: { value: k } }); },
+    run: (yrs) => { const n = Math.ceil(yrs / 5); for (let i = 0; i < n; i++) sim.step(yrs / n); update(true); }
+  };
+})();
+
+</script>
+</body>
+</html>
