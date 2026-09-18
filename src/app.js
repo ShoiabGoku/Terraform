@@ -251,13 +251,16 @@
     $('presets').querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', Math.abs(PRESETS[+c.dataset.i][1] - bombMt) / bombMt < 0.02));
   }
 
+  let closeUps = true;
   function detonateAt(pick) {
     const rep = sim.detonate(pick.lat, pick.lon, bombMt, pick.cls.kind);
     spawn.n = sim.nukesFired;
     view.addBlast(pick.dir, {
       fireball: rep.fireball, crater: rep.crater, plumeTop: rep.plumeTop, vacuum: rep.vacuum,
-      target: pick.cls.kind, yieldMt: bombMt, tag: yieldStr(bombMt)
+      target: pick.cls.kind, yieldMt: bombMt, tag: yieldStr(bombMt),
+      delay: closeUps ? 2.1 : 0                     /* let the camera arrive first */
     });
+    if (closeUps) view.focusOn(pick.dir, rep.plumeTop);
     showBlast(rep, pick);
     update(true);
     return rep;
@@ -293,9 +296,11 @@
       (exag > 1.05 ? `The blast is drawn <b>×${words(exag)}</b> larger than life at this zoom — press <i>true scale</i> or zoom in to see its real size. ` : 'Drawn at true scale. ') +
       (w.key === 'earth' ? '<br><span class="warn">On Earth the real climate danger is soot from burning cities — nuclear winter — which this model does not include.</span>' : '') +
       (rep.surface === 'CO₂ polar ice' ? '<br>While the cap survives it pins the pressure to its frost point, so most of this CO₂ will snow back out.' : '') +
-      `</div>`;
+      `</div>` +
+      `<div class="btnrow"><button class="btn" id="blastWatch">▶ watch it close up</button></div>`;
     $('blast').style.display = 'block';
     $('blastX').onclick = hideBlast;
+    $('blastWatch').onclick = () => view.focusOn(pick.dir, rep.plumeTop);
   }
 
   /* --------------------------- view controls --------------------------- */
@@ -352,6 +357,9 @@
   toggle('vTrue', () => view.trueScale, (v) => view.trueScale = v);
   toggle('vFall', () => view.showFallout, (v) => view.showFallout = v);
   $('vReset').onclick = () => view.resetView();
+  toggle('vClose', () => closeUps, (v) => closeUps = v);
+  $('vOrbit').onclick = () => view.exitFocus();
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') view.exitFocus(); });
 
   function updateTip() {
     const tip = $('tip');
@@ -506,7 +514,14 @@
     $('hudTL').innerHTML = `<b>${w.name}</b><div class="st">t + ${years(sim.t)} · ${press(s.pPa)} · ${fmt(s.C, 1)} °C</div>` +
       `<div class="see">${describe(vs, w)}</div>`;
     const recent = view.effects.length > 0;
-    $('hudTR').innerHTML = (view.trueScale ? '<span class="sc">true scale</span><br>blasts drawn at their real size'
+    const clk = view.heroClock();
+    const clock = (t) => t < 60 ? `${t.toFixed(1)} s` : `${Math.floor(t / 60)} min ${String(Math.floor(t % 60)).padStart(2, '0')} s`;
+    $('vOrbit').style.display = view.fcs ? '' : 'none';
+    $('hint').textContent = view.fcs ? 'drag to circle the blast · scroll to move in or back out · Esc for orbit'
+      : 'click to detonate · drag to turn · scroll to zoom';
+    $('hudTR').innerHTML = (clk ? `<span class="sc">${clk.tag || ''} · T+ ${clock(clk.t)}</span>` +
+        (clk.k > 1.01 ? `<br>cloud's climb shown ×${Math.round(clk.k)} faster` : '<br>real time') + '<br>' : '') +
+      (view.trueScale ? '<span class="sc">true scale</span><br>blasts drawn at their real size'
       : recent && view.lastExag > 1.05 ? `<span class="sc">blasts ×${words(view.lastExag)} life size</span><br>zoom in or press <i>true scale</i>`
         : 'blast effects are enlarged to be visible') +
       (view.mode !== 'webgl2' ? `<br><span class="warn">WebGL2 unavailable — coarse CPU globe</span>` : '');
@@ -731,7 +746,10 @@
       return detonateAt({ lat, lon, dir, cls });
     },
     pickCenter: () => view.pick(view.cssW / 2, view.cssH / 2),
+    focus: (lat, lon, plumeTop) => view.focusOn(RN.dirFromLatLon(lat, lon), plumeTop),
+    exitFocus: () => view.exitFocus(),
     lookAt: (lat, lon, dist) => {
+      view.fcs = null; view.fly = null;
       const d = view.toWorld(RN.dirFromLatLon(lat, lon));
       view.cam.pitch = Math.max(-1.45, Math.min(1.45, Math.asin(d[1])));
       view.cam.yaw = Math.atan2(d[0], d[2]);

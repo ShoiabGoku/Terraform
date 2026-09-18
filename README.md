@@ -42,10 +42,21 @@ casts a shadow, or — on an airless world — ejecta on ballistic arcs, and a r
 > cloud top ~26 km. Vaporises **342 kt of CO₂**, 7×10⁻⁷ % of the cap, and raises the pressure by
 > 9×10⁻⁶ Pa. Releasing all of it would take **136 million devices = 90,772 world arsenals.**
 
-Blast effects are enlarged so you can see them (the HUD says by how much); press **true scale**
-or zoom in and they shrink to their real size — a 50 Mt mushroom on Mars is a few pixels from
-orbit. The fireball flash plays in real time (its thermal pulse lasts ~0.9 s for 1 Mt, ~5 s for
-50 Mt); the cloud's climb is sped up.
+**Close-ups.** After you click, the camera flies down beside the blast, low over the ground, and
+you watch it happen at true scale: the flash floods the view, the fireball glows white then
+orange, the shock ring races out, and a ray-marched mushroom cloud climbs, spreads into a rolling
+vortex ring and casts its shadow, with dust in the stem and a base surge along the ground. It is
+lit by the sun and from inside by the fireball, seen through the planet's own sky: blue haze on
+Earth, butterscotch dust on Mars, orange smog on Titan, black and starry on the Moon (where there
+is no cloud at all, only ejecta on ballistic arcs). The shape follows Glasstone & Dolan: about
+half-way up after a minute, stable at the cloud-top height after ten, the cap about as wide as it
+is high. The flash plays in real time (its thermal pulse lasts ~0.9 s for 1 Mt, ~5 s for 50 Mt);
+the several-minute climb is shown ~15× faster, and the HUD shows the clock and the speed-up. Drag
+to circle it, scroll to move in or back out, Esc to return to orbit.
+
+From orbit, blast effects are enlarged so you can see them (the HUD says by how much); press
+**true scale** and they shrink to their real size — a 50 Mt mushroom on Mars is a few pixels.
+Zooming in with the wheel tips the camera toward the horizon, as from an aircraft.
 
 ---
 
@@ -139,7 +150,7 @@ observed pressure and temperature as a *stable* fixed point (all 15 are checked 
 node -e "require('./src/planets.js');require('./src/climate.js').selfTest(true)"   # 16 checks
 node test/model-test.js      # 32 — the Mars headline results
 node test/worlds-test.js     # 14 — every world, thresholds, single detonations
-node test/render-test.js     # 13 — the globe shows what the model says
+node test/render-test.js     # 19 — the globe shows what the model says; the cloud's life
 ```
 
 In the browser, `__TF.view.parityTest(300)` renders the surface classes on the GPU and checks
@@ -167,11 +178,12 @@ it is poorly constrained; the Mars conclusion holds across its whole range.
 src/planets.js   15 worlds: inventories, thermodynamics, how each one looks
 src/climate.js   radiation, greenhouse, condensation, escape + self-test
 src/sim.js       interventions, single detonations, water, time integration
-src/render.js    WebGL2 globe, blast/plume/ejecta/comet effects, CPU fallback
+src/render.js    WebGL2 globe, ray-marched sky and mushroom clouds, close-up camera, CPU fallback
 src/app.js       controls, click-to-detonate, charts, verdict
 test/            verification
 build.js         inlines everything into terraform.html
 ```
 
 `window.__TF` exposes `sim`, `view`, `snapshot()`, `setWorld(key)`, `setScenario(key)`,
-`run(years)`, `detonate(lat, lon, yieldMt)` and `lookAt(lat, lon, dist)` for driving it headlessly.
+`run(years)`, `detonate(lat, lon, yieldMt)`, `focus(lat, lon, cloudTop_m)`, `exitFocus()` and
+`lookAt(lat, lon, dist)` for driving it headlessly.

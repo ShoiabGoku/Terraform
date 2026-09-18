@@ -539,7 +539,7 @@
       iceLat, frostLat: il.lat, seaFrac, frozenSea: s.T < 271, hydro, arid,
       cloud, cloudKind,
       atmoTau: Math.min(8, rayTau + dustTau + (cloudKind ? 1.5 * cloud : 0)),
-      atmoShell: shell, atmoCol,
+      atmoShell: shell, atmoCol, scaleH: s.pPa > 1e-3 ? Hkm * 1000 / w.R : 0,
       fallout: fo.chernobylZones > 0 ? Math.min(1, Math.log10(1 + fo.chernobylZones) / 3) : 0,
       /* rock starts to glow visibly at the Draper point, 798 K */
       glow: s.T > 798 ? Math.min(1, (s.T - 798) / 700) : 0,

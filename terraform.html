@@ -218,6 +218,8 @@ select:focus{outline:none;border-color:var(--rust)}
       <div class="hud" id="hudTL"></div>
       <div class="hud" id="hudTR"></div>
       <div class="hud" id="hudBR">
+        <button class="btn" id="vOrbit" title="Fly back up to orbit (Esc)" style="display:none">◀ orbit view</button>
+        <button class="btn on" id="vClose" title="After each detonation, fly down beside it">close-ups</button>
         <button class="btn on" id="vSpin" title="Let the planet turn">spin</button>
         <button class="btn" id="vTrue" title="Draw blasts at their real size">true scale</button>
         <button class="btn" id="vFall" title="Tint the ground by Cs-137 fallout (invisible in reality)">fallout</button>
@@ -1517,7 +1519,7 @@ select:focus{outline:none;border-color:var(--rust)}
       iceLat, frostLat: il.lat, seaFrac, frozenSea: s.T < 271, hydro, arid,
       cloud, cloudKind,
       atmoTau: Math.min(8, rayTau + dustTau + (cloudKind ? 1.5 * cloud : 0)),
-      atmoShell: shell, atmoCol,
+      atmoShell: shell, atmoCol, scaleH: s.pPa > 1e-3 ? Hkm * 1000 / w.R : 0,
       fallout: fo.chernobylZones > 0 ? Math.min(1, Math.log10(1 + fo.chernobylZones) / 3) : 0,
       /* rock starts to glow visibly at the Draper point, 798 K */
       glow: s.T > 798 ? Math.min(1, (s.T - 798) / 700) : 0,
@@ -1777,6 +1779,10 @@ uniform float uGlow, uFallout, uBump;
 uniform int uNScar;
 uniform vec4 uScar[48];
 uniform int uDebug;
+uniform highp sampler3D uNoise;
+uniform int uNB;
+uniform vec4 uBA[4], uBB[4], uBC[4], uBD[4], uBE[4], uBF[4];
+uniform float uCamAlt, uFwd, uFlash, uAtmTauDisk, uCloudVis;
 
 float sstep(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 float sq(float x) { return x * x; }
@@ -1791,10 +1797,13 @@ float vnoise(vec3 x) {
     u.z);
 }
 float fbm(vec3 p, float oct) {
+  /* the last octave fades in by its fractional part, so detail grows
+     smoothly as you zoom instead of popping */
   float s = 0.0, a = 0.5, n = 0.0;
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 12; i++) {
     if (float(i) >= oct) break;
-    s += a * vnoise(p); n += a;
+    float wgt = clamp(oct - float(i), 0.0, 1.0);
+    s += a * wgt * vnoise(p); n += a * wgt;
     p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5;
   }
   return s / n;
@@ -1840,6 +1849,152 @@ float sputnik(vec3 p, float scale) {
 }
 vec3 toPlanet(vec3 v) { float c = cos(uSpin), s = sin(uSpin); return vec3(c * v.x - s * v.z, v.y, s * v.x + c * v.z); }
 vec3 rotY(vec3 v, float a) { float c = cos(a), s = sin(a); return vec3(c * v.x - s * v.z, v.y, s * v.x + c * v.z); }
+
+/* ---- nuclear clouds, ray-marched ----
+   Per blast (planet frame, lengths in planet radii):
+     uBA  base direction xyz, final cloud height H
+     uBB  cap-centre height, ring (major) radius, ring (minor) radius, stem radius
+     uBC  base-surge radius, base-surge strength, shock-ring radius, shock-ring strength
+     uBD  fireball emission, colour temperature 0..1, fade, kind (0 dust, 1 steam, 2 vacuum)
+     uBE  cloud colour, poloidal roll angle of the vortex ring
+     uBF  bounding-sphere centre height and radius, crater radius, growth 0..1          */
+float tnoise(vec3 p) { return texture(uNoise, p).r; }
+float tfbm(vec3 p) { return 0.5 * tnoise(p) + 0.3 * tnoise(p * 2.03 + 0.37) + 0.2 * tnoise(p * 4.11 + 0.71); }
+float sdTorusZ(vec3 q, float R, float r) { return length(vec2(length(q.xy) - R, q.z)) - r; }
+float smin(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
+vec3 blastHot(float temp) {
+  vec3 c = mix(vec3(0.85, 0.16, 0.03), vec3(1.0, 0.55, 0.18), sstep(0.0, 0.5, temp));
+  return mix(c, vec3(1.0, 0.93, 0.80), sstep(0.5, 1.0, temp));
+}
+float blastField(int i, vec3 q, out float sd) {
+  float H = max(uBA[i].w, 1e-7);
+  float capH = uBB[i].x, cR = uBB[i].y, cr = max(uBB[i].z, 1e-7), sR = uBB[i].w;
+  /* the cap: a vortex ring with a dome over it */
+  vec3 qc = q - vec3(0.0, 0.0, capH);
+  float dT = sdTorusZ(qc, cR, cr);
+  vec3 er = vec3(cR + cr * 0.7, cR + cr * 0.7, cr * 1.3);
+  float dD = (length((qc - vec3(0.0, 0.0, cr * 0.45)) / er) - 1.0) * min(er.x, er.z);
+  float d = smin(dT, dD, cr * 0.5);
+  /* the stem, flaring into the cap */
+  if (sR > 0.0) {
+    float flare = 1.0 + 2.2 * sstep(capH * 0.45, capH, q.z);
+    float dS = max(length(q.xy) - sR * flare, max(-q.z, q.z - capH));
+    d = smin(d, dS, sR * 1.5);
+  }
+  /* the base surge rolling out along the ground */
+  float dK = 1e9;
+  if (uBC[i].y > 0.01 && uBC[i].x > 0.0) {
+    vec3 qk = vec3(q.xy, (q.z - uBC[i].x * 0.05) * 2.4);
+    dK = sdTorusZ(qk, uBC[i].x * 0.75, uBC[i].x * 0.25);
+  }
+  sd = min(d, dK);
+  if (sd > cr * 0.9 + H * 0.02) return 0.0;
+  /* billows, advected round the ring's core so the cap visibly rolls */
+  float ang = uBE[i].w;
+  vec2 tq = vec2(length(qc.xy) - cR, qc.z);
+  float cs = cos(ang), sn = sin(ang);
+  vec2 tr = vec2(cs * tq.x - sn * tq.y, sn * tq.x + cs * tq.y);
+  vec2 dxy = qc.xy / max(length(qc.xy), 1e-9);
+  vec3 qa = vec3(dxy * (cR + tr.x), tr.y);
+  float wT = 1.0 - sstep(cr * 0.8, cr * 1.7, length(tq));
+  vec3 qn = mix(qc, qa, wT) / H;
+  float n = tfbm(qn * 0.45 + vec3(0.13 * float(i), 0.0, -0.02 * ang));
+  float dens = clamp((-d + (n - 0.5) * cr * 1.6) / (cr * 0.35), 0.0, 1.0);
+  if (dK < 1e8) {
+    float nk = tnoise(qn * 0.9 + 0.5);
+    dens = max(dens, (uBD[i].w > 0.5 ? 0.85 : 0.4) * uBC[i].y * clamp((-dK + (nk - 0.5) * uBC[i].x * 0.35) / (uBC[i].x * 0.12 + 1e-7), 0.0, 1.0));
+  }
+  return dens;
+}
+void marchBlast(int i, vec3 ro, vec3 rd, float tMax, vec3 sunP, float jit, inout vec3 L, inout float T) {
+  if (uBD[i].w > 1.5 || uBD[i].z <= 0.0) return;          /* vacuum: nothing to hold a cloud up */
+  vec3 u = uBA[i].xyz;
+  vec3 c = u * (1.0 + uBF[i].x);
+  float rad = uBF[i].y;
+  vec3 oc = ro - c;
+  float b = dot(oc, rd), h = b * b - (dot(oc, oc) - rad * rad);
+  if (h <= 0.0) return;
+  h = sqrt(h);
+  float t0 = max(-b - h, 0.0), t1 = min(-b + h, tMax);
+  if (t1 <= t0) return;
+  vec3 e1 = normalize(cross(u, abs(u.y) > 0.95 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0)));
+  vec3 e2 = cross(u, e1);
+  vec3 o = ro - u;
+  vec3 lo = vec3(dot(o, e1), dot(o, e2), dot(o, u));
+  vec3 ld = vec3(dot(rd, e1), dot(rd, e2), dot(rd, u));
+  vec3 ls = vec3(dot(sunP, e1), dot(sunP, e2), dot(sunP, u));
+  float cr = max(uBB[i].z, 1e-7);
+  float ds = max((t1 - t0) / 64.0, cr * 0.07);
+  float sigma = 3.2 / cr;
+  float fade = uBD[i].z, E = uBD[i].x;
+  vec3 cloud = pow(uBE[i].rgb, vec3(2.2));
+  vec3 dust = pow(mix(uC1, vec3(0.55, 0.50, 0.46), 0.45), vec3(2.2));   /* soil sucked up the stem */
+  vec3 hot = blastHot(uBD[i].y);
+  float day = sstep(-0.12, 0.10, ls.z);
+  vec3 sky = pow(uAtmCol, vec3(2.2)) * min(uAtmTau, 1.0) * 0.35 * day + 0.012;
+  vec3 ground = pow(uC1, vec3(2.2)) * uSunCol * max(ls.z, 0.0) * 0.12;
+  float t = t0 + ds * jit;
+  for (int k = 0; k < 72; k++) {
+    if (t > t1 || T < 0.015) break;
+    vec3 q = lo + ld * t;
+    float sd;
+    float dens = blastField(i, q, sd) * fade;
+    if (dens <= 0.002) { t += max(ds, (sd - cr * 0.65) * 0.8); continue; }
+    float sd2;
+    float dl = blastField(i, q + ls * cr * 0.9, sd2) * fade;
+    float Ts = exp(-sigma * dl * cr * 0.9 * 1.3) * day;
+    vec3 core = q - vec3(0.0, 0.0, uBB[i].x);
+    float glowFall = 1.0 / (1.0 + dot(core, core) / (cr * cr * 0.3));
+    float under = 1.0 - sstep(0.0, cr * 1.2, q.z - uBB[i].x + cr * 0.4);   /* underside catches the ground's light */
+    vec3 alb = uBD[i].w < 0.5 ? mix(dust, cloud, sstep(uBB[i].x - cr * 1.6, uBB[i].x - cr * 0.4, q.z)) : cloud;
+    vec3 lit = alb * (uSunCol * Ts * 1.15 + sky + ground * under) + hot * E * glowFall * (0.3 + 0.7 * alb);
+    float a = 1.0 - exp(-sigma * dens * ds);
+    L += T * a * lit;
+    T *= 1.0 - a;
+    t += ds;
+  }
+}
+
+/* ---- the sky: single scattering, marched with samples packed where the
+   air is densest (the ground, or the tangent point of a limb ray) ---- */
+vec3 atmMarch(vec3 ro, vec3 rd, float tEnd, float tauV, out vec3 trans) {
+  trans = vec3(1.0);
+  if (tauV <= 0.0) return vec3(0.0);
+  float Hn = max(uAtmH, 1e-5);
+  float Ra = 1.0 + 10.0 * Hn;
+  float b = dot(ro, rd), h = b * b - (dot(ro, ro) - Ra * Ra);
+  if (h <= 0.0) return vec3(0.0);
+  h = sqrt(h);
+  float ta = max(-b - h, 0.0), tb = min(-b + h, tEnd);
+  if (tb <= ta) return vec3(0.0);
+  float tm = clamp(-b, ta, tb);
+  /* scattering strength per colour channel, relative to the strongest:
+     the sky colour doubles as the spectrum (roughly lambda^-4 for clean air) */
+  vec3 wc = uAtmCol / max(max(uAtmCol.r, uAtmCol.g), max(uAtmCol.b, 1e-3));
+  vec3 tau = vec3(0.0), acc = vec3(0.0);
+  for (int k = 0; k < 16; k++) {
+    float x, tt, ds;
+    if (k < 8) { x = 1.0 - (float(k) + 0.5) / 8.0; tt = tm - (tm - ta) * x * x; ds = 2.0 * x * (tm - ta) / 8.0; }
+    else { x = (float(k - 8) + 0.5) / 8.0; tt = tm + (tb - tm) * x * x; ds = 2.0 * x * (tb - tm) / 8.0; }
+    vec3 p = ro + rd * tt;
+    float r = length(p);
+    float e = exp(-max(r - 1.0, 0.0) / Hn);
+    float dt = tauV * e / Hn * ds;
+    float bs = dot(p, uSun);
+    float X = min(1.0 / max(bs / r, 0.02), sqrt(1.5708 * r / Hn));
+    float lit = bs >= 0.0 ? 1.0 : sstep(0.985, 1.015, sqrt(max(r * r - bs * bs, 0.0)));
+    vec3 dt3 = dt * wc;
+    acc += exp(-tau - 0.5 * dt3) * dt3 * exp(-tauV * e * X * wc) * lit;
+    tau += dt3;
+  }
+  trans = exp(-tau);
+  float mu = dot(rd, uSun);
+  float ray = 0.75 * (1.0 + mu * mu);
+  float hg = 0.5 * (1.0 - 0.4225) / pow(max(1.4225 - 1.3 * mu, 1e-3), 1.5);
+  float phase = mix(ray, hg, uFwd);
+  /* a thick sky saturates, but keeps some of its own colour (hazes absorb as well as scatter) */
+  return uSunCol * mix(vec3(1.0), wc, 0.5) * (1.0 - exp(-acc * phase * 1.15));
+}
 
 vec3 baseColor(vec3 p, float h, float lat, float n2) {
   vec3 c;
@@ -1923,20 +2078,27 @@ void main() {
   float b = dot(ro, rd);
   float disc = b * b - (dot(ro, ro) - 1.0);
   vec3 sunL = uSunCol;
-  vec3 atm = pow(uAtmCol, vec3(2.2));
-  float Hn = max(uAtmH, 1e-4);
+  vec3 sunP = toPlanet(uSun);
   vec3 col;
+  float tHit = 1e9;
 
   if (disc > 0.0 && b < 0.0) {
     float t = -b - sqrt(disc);
+    tHit = t;
     vec3 P = ro + rd * t;
     vec3 n = normalize(P);
     vec3 p = toPlanet(n);
     float lat = asin(clamp(p.y, -1.0, 1.0));
-    float h = terrain(p, uOct);
+    /* level of detail from this pixel's own footprint on the ground */
+    float oct = uDebug == 1 ? 6.0 : clamp(1.0 + log2(0.5 / (1.6 * max(t * 2.0 * uTanF / uRes.y, 1e-9))) / 1.0215, 6.0, 11.0);
+    float h = terrain(p, oct);
+    /* small craters on the airless, cratered worlds, only when close enough
+       to see them (never at the 6 octaves the click classifier uses) */
+    if (oct > 8.0 && uCraterAmt > 0.5) h += 0.03 * craterField(p, 90.0, uSeed + 7.7) * clamp(oct - 8.0, 0.0, 1.0);
     float n2 = fbm(p * 4.0 + uSeed * 1.9, 4.0);
     vec3 alb = baseColor(p, h, lat, n2);
-    alb *= 0.84 + 0.32 * fbm(p * 22.0 + 7.0, max(uOct - 4.0, 2.0));   /* fine detail when zoomed in */
+    alb *= 0.84 + 0.32 * fbm(p * 22.0 + 7.0, max(oct - 4.0, 2.0));   /* fine detail when zoomed in */
+    if (oct > 7.0) alb *= 1.0 + 0.45 * (fbm(p * 420.0 + 3.0, min(oct - 6.0, 4.0)) - 0.5) * clamp(oct - 7.0, 0.0, 1.0);
     float spec = 0.0, relief = 1.0;
 
     /* parity check: paint the surface class exactly as RN.classify decides it */
@@ -1999,12 +2161,49 @@ void main() {
       vec4 s = uScar[i];
       float k = floor(s.w), r = max(fract(s.w), 1e-6);
       if (k > 2.5) continue;
-      float x = acos(clamp(dot(p, s.xyz), -1.0, 1.0)) / r;
+      float x = length(p - s.xyz) / r;          /* chord length: an arc-cosine of ~1 loses all precision up close */
       if (x < 2.2) {
         vec3 dark = (k > 0.5 && k < 1.5) ? uC0 * 0.55 : alb * 0.35;
         alb = mix(alb, alb * 0.72, 0.4 * (1.0 - sstep(1.1, 2.2, x)));
         alb = mix(alb, dark, 0.85 * (1.0 - sstep(0.7, 1.0, x)));
         alb = mix(alb, alb * 1.25 + 0.04, 0.6 * exp(-((x - 1.05) * 6.0) * ((x - 1.05) * 6.0)));
+      }
+    }
+
+    /* what a blast does to the ground around it: the shock ring, the
+       fireball's light, the glowing crater, and the cloud's shadow */
+    float shade = 0.0;
+    vec3 glowAdd = vec3(0.0);
+    for (int i = 0; i < 4; i++) {
+      if (i >= uNB) break;
+      vec3 u = uBA[i].xyz;
+      float cr = max(uBB[i].z, 1e-7), fadeB = uBD[i].z;
+      vec3 e1 = normalize(cross(u, abs(u.y) > 0.95 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0)));
+      vec3 e2 = cross(u, e1);
+      vec3 v = p - u;
+      vec3 q = vec3(dot(v, e1), dot(v, e2), dot(v, u));
+      float dist = length(q.xy);
+      float rr = uBC[i].z;
+      if (rr > 0.0 && uBC[i].w > 0.001) {
+        float x = (dist - rr) / (0.12 * rr + 1e-7);
+        alb = mix(alb, min(uBE[i].rgb * 1.15, vec3(1.0)), 0.6 * uBC[i].w * exp(-x * x) * fadeB);
+      }
+      float E = uBD[i].x * fadeB;
+      vec3 hot = blastHot(uBD[i].y);
+      float cR = uBF[i].z;
+      glowAdd += hot * E * 0.25 * (1.0 - sstep(0.5 * cR, 1.3 * cR, dist));
+      vec3 ldir = u * (1.0 + max(uBB[i].x, cR)) - p;
+      float l2 = dot(ldir, ldir);
+      float lr = max(cr, cR);
+      glowAdd += hot * E * max(dot(p, ldir), 0.0) / sqrt(l2) * (lr * lr) / (l2 + lr * lr * 0.25);
+      vec3 ls = vec3(dot(sunP, e1), dot(sunP, e2), dot(sunP, u));
+      if (ls.z > 0.02 && uBF[i].w > 0.02 && uBD[i].w < 1.5) {
+        vec2 qa = q.xy + ls.xy * (uBB[i].x - q.z) / ls.z;
+        float sh = 1.0 - sstep(uBB[i].y * 0.6 + cr * 0.3, uBB[i].y + cr * 1.15, length(qa));
+        float l2d = dot(ls.xy, ls.xy);
+        float sst = -dot(q.xy, ls.xy) / max(l2d, 1e-9);
+        if (sst > 0.0 && sst * ls.z < uBB[i].x) sh = max(sh, 0.8 * (1.0 - sstep(uBB[i].w * 0.8, uBB[i].w * 2.2, length(q.xy + ls.xy * sst))));
+        shade = max(shade, sh * sstep(0.03, 0.2, uBF[i].w) * fadeB * 0.85);
       }
     }
 
@@ -2021,7 +2220,8 @@ void main() {
     alb = pow(clamp(alb, 0.0, 1.0), vec3(2.2));
     float wrap = min(0.3, uAtmTau * 0.05);
     float lit = max((dot(nb, uSun) + wrap) / (1.0 + wrap), 0.0) * sstep(-0.15, 0.05, dot(n, uSun) + wrap);
-    vec3 surf = alb * sunL * lit + alb * 0.003;
+    lit *= 1.0 - shade;
+    vec3 surf = alb * sunL * lit + alb * 0.003 + alb * glowAdd;
     if (spec > 0.0) {
       vec3 hv = normalize(uSun - rd);
       float sp = pow(max(dot(n, hv), 0.0), 120.0);
@@ -2054,33 +2254,33 @@ void main() {
       }
       float cl = max((dot(n, uSun) + 0.12) / 1.12, 0.0);
       vec3 under = uGlow > 0.0 ? vec3(0.5, 0.12, 0.03) * uGlow * 0.3 : vec3(0.0);
-      surf = mix(surf, pow(cc, vec3(2.2)) * sunL * cl + under, cd * 0.96);
+      surf = mix(surf, pow(cc, vec3(2.2)) * sunL * cl + under, cd * 0.96 * uCloudVis);
     }
-    /* the sky between you and the ground */
-    if (uAtmTau > 0.0) {
-      /* under a cloud deck, only the thin air above the cloud tops scatters */
-      float tau0 = (uCloudKind > 0 && uCloud > 0.5) ? min(uAtmTau, 0.25) : uAtmTau;
-      float mu = max(dot(n, -rd), 0.0);
-      float X = min(1.0 / max(mu, 0.01), sqrt(1.5708 / Hn));
-      float tau = tau0 * X;
-      float sl = sstep(-0.25, 0.35, dot(n, uSun));
-      surf = surf * exp(-tau * 0.35) + atm * sunL * sl * (1.0 - exp(-tau * 0.6)) * 0.8;
-    }
-    col = surf;
+    /* the air between you and the ground */
+    vec3 trA;
+    vec3 ins = atmMarch(ro, rd, t, uAtmTauDisk, trA);
+    col = surf * trA + ins;
   } else {
-    col = stars(rd);
-    float sd = max(dot(rd, uSun), 0.0);
-    col += sunL * (pow(sd, 3000.0) * 30.0 + pow(sd, 250.0) * 0.25);
     if (uDebug == 1) { outCol = vec4(0.0, 0.0, 0.0, 1.0); return; }
-    if (uAtmTau > 0.0 && b < 0.0) {
-      vec3 pc = ro - rd * b;
-      float bi = length(pc);
-      float tl = uAtmTau * sqrt(6.2832 / Hn) * exp(-(bi - 1.0) / Hn);
-      float sl = sstep(-0.3, 0.3, dot(pc / bi, uSun));
-      float fwd = pow(sd, 8.0);
-      col += atm * sunL * (1.0 - exp(-tl * 0.6)) * (sl * 0.8 + 1.5 * fwd);
-    }
+    float sd = max(dot(rd, uSun), 0.0);
+    vec3 trA;
+    vec3 ins = atmMarch(ro, rd, 1e9, uAtmTau, trA);
+    col = (stars(rd) + sunL * (pow(sd, 3000.0) * 30.0 + pow(sd, 250.0) * 0.25)) * trA + ins;
   }
+
+  /* nuclear clouds, in front of whatever lies behind them */
+  if (uNB > 0) {
+    vec3 roP = toPlanet(ro), rdP = toPlanet(rd);
+    vec3 L = vec3(0.0);
+    float T = 1.0;
+    float jit = hash13(vec3(gl_FragCoord.xy, 7.0));
+    for (int i = 0; i < 4; i++) {
+      if (i >= uNB) break;
+      marchBlast(i, roP, rdP, tHit, sunP, jit, L, T);
+    }
+    col = col * T + L;
+  }
+  col += vec3(1.0, 0.95, 0.86) * uFlash;                /* the flash floods the whole view */
   col = aces(col * uExposure);
   outCol = vec4(pow(col, vec3(1.0 / 2.2)), 1.0);
 }`;
@@ -2091,7 +2291,8 @@ void main() {
     'uSun', 'uSunCol', 'uStyle', 'uC0', 'uC1', 'uC2', 'uC3', 'uCraterAmt', 'uRough', 'uSeed', 'uFlags',
     'uSeaLevel', 'uFrozenSea', 'uFrostLat', 'uSnow', 'uArid', 'uCryoLevel', 'uCryoCol', 'uIceLat', 'uIceNative',
     'uCapLat', 'uCapFrac', 'uCapCol', 'uCloud', 'uCloudKind', 'uAtmTau', 'uAtmH', 'uAtmCol',
-    'uGlow', 'uFallout', 'uBump', 'uNScar', 'uScar', 'uDebug'];
+    'uGlow', 'uFallout', 'uBump', 'uNScar', 'uScar', 'uDebug',
+    'uNoise', 'uNB', 'uBA', 'uBB', 'uBC', 'uBD', 'uBE', 'uBF', 'uCamAlt', 'uFwd', 'uFlash', 'uAtmTauDisk', 'uCloudVis'];
 
   function compile(gl, type, src) {
     const s = gl.createShader(type);
@@ -2102,6 +2303,51 @@ void main() {
   }
 
   const SCAR_KIND = { rock: 0, cap: 1, capn2: 1, ice: 2, ocean: 3 };
+  const HERO_LIFE = 60;              /* seconds a clicked blast stays on screen */
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const len = (a) => Math.hypot(a[0], a[1], a[2]);
+
+  /* A 64^3 tileable value-noise texture for the clouds: one texture fetch
+     per octave instead of eight hashes, so a cloud can be ray-marched. */
+  function makeNoise3D(gl) {
+    const N = 64, L = 16, cell = N / L;
+    const lat = new Float32Array(L * L * L);
+    let seed = 20260919;
+    for (let i = 0; i < lat.length; i++) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; lat[i] = seed / 0x7fffffff; }
+    const at = (x, y, z) => lat[(((z % L) + L) % L) * L * L + (((y % L) + L) % L) * L + (((x % L) + L) % L)];
+    const sm = (t) => t * t * (3 - 2 * t);
+    const data = new Uint8Array(N * N * N);
+    for (let z = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const fx = x / cell, fy = y / cell, fz = z / cell;
+      const ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz);
+      const ux = sm(fx - ix), uy = sm(fy - iy), uz = sm(fz - iz);
+      const v = lerp(
+        lerp(lerp(at(ix, iy, iz), at(ix + 1, iy, iz), ux), lerp(at(ix, iy + 1, iz), at(ix + 1, iy + 1, iz), ux), uy),
+        lerp(lerp(at(ix, iy, iz + 1), at(ix + 1, iy, iz + 1), ux), lerp(at(ix, iy + 1, iz + 1), at(ix + 1, iy + 1, iz + 1), ux), uy), uz);
+      data[(z * N + y) * N + x] = Math.round(v * 255);
+    }
+    const tex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_3D, tex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, N, N, N, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, p, gl.REPEAT);
+    return tex;
+  }
+
+  /* what a mushroom cloud is made of, and so what colour it is */
+  function cloudColour(e, g, w) {
+    if (e.target === 'ocean' || e.target === 'ice') return [0.90, 0.91, 0.93];    /* steam */
+    if (e.target === 'cap') return [0.80, 0.78, 0.77];                          /* dirty frost and vapour */
+    if (w.key === 'earth') {
+      /* nitrogen dioxide browns the young cloud; condensing water whitens it */
+      const k = sstep(0.15, 0.6, g), a = [0.62, 0.42, 0.30], b = [0.80, 0.78, 0.76];
+      return a.map((v, i) => lerp(v, b[i], k));
+    }
+    return w.render.c1.map((v) => v * 0.75 + 0.12);                            /* the planet's own soil */
+  }
 
   /* ------------------------------------------------------------------
      The view
@@ -2111,6 +2357,10 @@ void main() {
     this.overlay = overlay;
     this.fx = overlay.getContext('2d');
     this.cam = { yaw: 0.45, pitch: 0.30, dist: 4.3, fov: 34 * D2R };
+    this.fcs = null;          /* close-up camera parked beside a blast */
+    this.fly = null;          /* camera move in progress */
+    this.heroes = [];
+    this.flash = 0;
     this.spin = 0;
     this.spinOn = true;
     this.spinDir = 1;
@@ -2162,6 +2412,10 @@ void main() {
     this.U = {};
     for (const n of UNIFORMS) this.U[n] = gl.getUniformLocation(prog, n);
     this.scarBuf = new Float32Array(48 * 4);
+    this.bBuf = [0, 1, 2, 3, 4, 5].map(() => new Float32Array(16));
+    try { this.noiseTex = makeNoise3D(gl); } catch (e) { console.warn('[render] noise texture', e); }
+    this.tq = gl.getExtension('EXT_disjoint_timer_query_webgl2');   /* GPU timer, if the browser allows it */
+    this._q = null;
     this.mode = 'webgl2';
     return true;
   };
@@ -2179,6 +2433,8 @@ void main() {
     this.spinDir = w.rotation_h < 0 ? -1 : 1;
     this.effects = [];
     this.impactScars = [];
+    this.heroes = [];
+    this.fcs = null; this.fly = null;
     this.cpuT = -1;
   };
 
@@ -2190,25 +2446,102 @@ void main() {
   };
 
   /* ---------------- camera ---------------- */
-  View.prototype.basis = function () {
+  /* Two cameras.  Orbit circles the planet, and as it comes down toward
+     the ground it tips up toward the horizon as an aircraft would.  Focus
+     parks beside a blast, low over the ground, looking at the cloud. */
+  View.prototype._orbitBasis = function () {
     const c = this.cam, cp = Math.cos(c.pitch);
     const pos = [c.dist * cp * Math.sin(c.yaw), c.dist * Math.sin(c.pitch), c.dist * cp * Math.cos(c.yaw)];
-    const F = norm(mul(pos, -1));
-    const R = norm(cross(F, [0, 1, 0]));
-    const U = cross(R, F);
+    const F0 = norm(mul(pos, -1));
+    const R = norm(cross(F0, [0, 1, 0]));
+    const U0 = cross(R, F0);
+    const tilt = 1.2 * (1 - sstep(0.04, 0.8, c.dist - 1));
+    const F = norm(add(mul(F0, Math.cos(tilt)), mul(U0, Math.sin(tilt))));
+    return { pos, F, R, U: cross(R, F), tilt };
+  };
+  View.prototype._frameAt = function (dir) {
+    const n = this.toWorld(dir);
+    const e1 = norm(cross(n, Math.abs(n[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0]));
+    return { n, e1, e2: cross(n, e1) };
+  };
+  View.prototype._focusBasis = function () {
+    const f = this.fcs, { n, e1, e2 } = this._frameAt(f.dir);
+    const T = mul(n, 1 + f.h);
+    const cp = Math.cos(f.pitch);
+    const off = add(mul(add(mul(e1, Math.sin(f.yaw)), mul(e2, Math.cos(f.yaw))), cp), mul(n, Math.sin(f.pitch)));
+    let pos = add(T, mul(off, f.dist));
+    const r = len(pos), minR = 1 + Math.max(f.H * 0.05, 3e-6);
+    if (r < minR) pos = mul(pos, minR / r);                      /* never below the ground */
+    const F = norm(sub(T, pos));
+    const R = norm(cross(F, n));
+    return { pos, F, R, U: cross(R, F), tilt: 1, target: T };
+  };
+  View.prototype.basis = function () {
+    let b = this.fcs ? this._focusBasis() : this._orbitBasis();
+    if (this.fly) {
+      const s = sstep(0, 1, (performance.now() / 1000 - this.fly.t0) / this.fly.dur);
+      if (s >= 1) this.fly = null;
+      else {
+        /* move on a log scale of distance around the blast, so the long
+           drop from orbit and the final approach both take their time */
+        const a = this.fly.from, T = mul(this.toWorld(this.fly.dir), 1 + this.fly.h);
+        const da = sub(a.pos, T), db = sub(b.pos, T), la = len(da), lb = len(db);
+        const d = Math.exp(lerp(Math.log(la), Math.log(lb), s));
+        let pos = add(T, mul(norm(add(mul(da, (1 - s) / la), mul(db, s / lb))), d));
+        if (len(pos) < 1.00001) pos = mul(pos, 1.00001 / len(pos));
+        const F = norm(add(mul(a.F, 1 - s), mul(b.F, s)));
+        const up = norm(add(mul(a.U, 1 - s), mul(b.U, s)));
+        const R = norm(cross(F, up));
+        b = { pos, F, R, U: cross(R, F), tilt: 1 };
+      }
+    }
     /* in a portrait view keep the planet's width, not its height, in frame */
-    const tanF = Math.tan(c.fov / 2) * Math.max(1, (this.cssH || 1) / (this.cssW || 1));
-    return { pos, F, R, U, tanF };
+    b.tanF = Math.tan(this.cam.fov / 2) * Math.max(1, (this.cssH || 1) / (this.cssW || 1));
+    return b;
+  };
+  /* fly down beside a blast: a few cloud-heights away, low over the ground,
+     side-lit by the sun */
+  View.prototype.focusOn = function (dir, plumeTop_m) {
+    if (!this.w) return;
+    const H = Math.max(plumeTop_m || 2e4, 300) / this.w.R;
+    const { e1, e2 } = this._frameAt(dir);
+    const yaw = Math.atan2(dot(this.sun, e1), dot(this.sun, e2)) + 1.95;
+    const from = this.B || this.basis();
+    this.fcs = { dir, H, h: 0.42 * H, yaw, pitch: 0.32, dist: Math.max(5.5 * H, 4e-4) };
+    this.fly = { t0: performance.now() / 1000, dur: 2.4, from: { pos: from.pos, F: from.F, U: from.U }, dir, h: this.fcs.h };
+  };
+  View.prototype.exitFocus = function () {
+    if (!this.fcs) return;
+    const from = this.B || this.basis(), f = this.fcs;
+    const n = this.toWorld(f.dir);
+    this.fcs = null;
+    this.cam.pitch = clamp(Math.asin(n[1]), -1.2, 1.2);
+    this.cam.yaw = Math.atan2(n[0], n[2]);
+    this.cam.dist = Math.max(this.cam.dist, 2.6);
+    this.fly = { t0: performance.now() / 1000, dur: 2.0, from: { pos: from.pos, F: from.F, U: from.U }, dir: f.dir, h: f.h };
   };
   View.prototype.orbit = function (dx, dy) {
+    if (this.fcs) {
+      this.fcs.yaw -= dx * 0.006;
+      this.fcs.pitch = clamp(this.fcs.pitch + dy * 0.004, 0.03, 1.45);
+      return;
+    }
     const k = 0.005 * Math.min(1, (this.cam.dist - 1) / 1.5 + 0.08);
     this.cam.yaw -= dx * k;
     this.cam.pitch = clamp(this.cam.pitch + dy * k, -1.45, 1.45);
   };
   View.prototype.zoom = function (f) {
-    this.cam.dist = clamp(1 + (this.cam.dist - 1) * f, 1.015, 9);
+    if (this.fcs) {
+      this.fcs.dist = Math.max(this.fcs.dist * f, this.fcs.H * 1.2);
+      if (this.fcs.dist > Math.max(40 * this.fcs.H, 0.5)) this.exitFocus();     /* backed right out: return to orbit */
+      return;
+    }
+    this.cam.dist = clamp(1 + (this.cam.dist - 1) * f, 1.004, 9);
   };
-  View.prototype.resetView = function () { this.cam.yaw = 0.45; this.cam.pitch = 0.30; this.cam.dist = 4.3; };
+  View.prototype.resetView = function () {
+    if (this.fcs) this.exitFocus();
+    this.cam.yaw = 0.45; this.cam.pitch = 0.30; this.cam.dist = 4.3;
+  };
 
   View.prototype.toWorld = function (v) {
     const c = Math.cos(this.spin), s = Math.sin(this.spin);
@@ -2267,12 +2600,18 @@ void main() {
     }
     return best;
   };
-  View.prototype.pxPerR = function () { return (this.cssH / 2) / (Math.max(this.cam.dist - 1, 0.01) * (this.B || this.basis()).tanF); };
+  View.prototype.pxPerR = function () {
+    const B = this.B || this.basis();
+    const d = this.fcs ? this.fcs.dist : Math.max(len(B.pos) - 1, 1e-3);
+    return (this.cssH / 2) / (Math.max(d, 1e-5) * B.tanF);
+  };
 
   /* ---------------- effects ---------------- */
   /* info: {fireball, crater, plumeTop (m), vacuum, target, yieldMt, count, campaign} */
   View.prototype.addBlast = function (dirPlanet, info) {
-    this.effects.push(Object.assign({ type: 'blast', dir: dirPlanet, t0: performance.now() / 1000, seed: Math.random() * 1000 }, info));
+    const hero = !info.campaign && this.mode === 'webgl2';        /* clicked blasts get the full volumetric treatment */
+    const t0 = performance.now() / 1000 + (info.delay || 0);
+    this.effects.push(Object.assign({ type: 'blast', dir: dirPlanet, t0, seed: Math.random() * 1000, hero }, info));
     if (this.effects.length > 40) this.effects.splice(0, this.effects.length - 40);
   };
   View.prototype.addComet = function (dirPlanet, info) {
@@ -2305,16 +2644,97 @@ void main() {
     this._resize();
     if (this.spinOn) this.spin += dtReal * 0.05 * this.spinDir;
     const B = this.B = this.basis();
+    this._heroParams(now, B);
     if (this.mode === 'webgl2' && !this.lost) this._drawGL(now, B);
     this._drawFX(now, B);
-    /* keep the frame rate up on slow GPUs by lowering the shader's resolution */
-    if (this.mode === 'webgl2' && dtReal > 0 && dtReal < 0.5) {
-      this._ema += (dtReal * 1000 - this._ema) * 0.05;
-      if (now - this._resT > 1.2) {
-        if (this._ema > 30 && this.resScale > 0.4) { this.resScale = Math.max(0.4, this.resScale - 0.1); this._resT = now; }
-        else if (this._ema < 18 && this.resScale < 1) { this.resScale = Math.min(1, this.resScale + 0.05); this._resT = now; }
+    /* keep the frame rate up on slow GPUs by lowering the shader's
+       resolution.  Judge by the GPU's own timer where there is one: frame
+       intervals also count hitches and throttled background tabs. */
+    if (this.mode === 'webgl2' && dtReal > 0 && dtReal < 0.06) this._ema += (dtReal * 1000 - this._ema) * 0.05;
+    const cost = this.gpuMs !== undefined ? this.gpuMs * 1.25 : this._ema;
+    if (this.mode === 'webgl2' && now - this._resT > 1.2) {
+      if (cost > 30 && this.resScale > 0.45) { this.resScale = Math.max(0.45, this.resScale - 0.1); this._resT = now; }
+      else if (cost < 17 && this.resScale < 1) { this.resScale = Math.min(1, this.resScale + 0.05); this._resT = now; }
+    }
+  };
+
+  /* The life of one nuclear cloud (Glasstone & Dolan ch. 2).  The flash and
+     fireball play in real time; after 2.5 s the clock runs faster so the
+     several-minute climb of the cloud fits in about twenty seconds.  Every
+     size is the physical one, times the on-screen enlargement (1 in close-up). */
+  View.prototype._heroParams = function (now, B) {
+    const out = [];
+    let flash = 0;
+    if (this.mode === 'webgl2' && this.w) {
+      const w = this.w, R = w.R;
+      const list = this.effects.filter((e) => e.hero && now >= e.t0 && now - e.t0 < HERO_LIFE).slice(-4);
+      for (const e of list) {
+        const tw = now - e.t0;
+        const n = this.toWorld(e.dir);
+        const base = this.project(n, B);
+        const Htrue = Math.max(e.plumeTop || 2e4, 300);
+        const exag = this.trueScale || !base ? 1 : Math.max(1, 30 / (Htrue / R * base.s));
+        const st = RN.blastState(e, tw, R, exag, w);
+        e.exag = exag; e.simT = st.t; e.speedK = st.K;
+        out.push(st.uniforms);
+        const F = st.F, crater = st.crater, H = st.H, t = st.t, tp = st.tp, vac = !!e.vacuum;
+        /* the flash itself: it floods the view while the fireball is in sight */
+        if (base && tw < 4 && this.visible(mul(n, 1 + Math.max(F, crater, 1e-5)), B)) {
+          const px = Math.max(F, crater * 2, H * 0.05) * base.s;
+          flash += (vac ? 0.9 : 1.4) * Math.exp(-t / (0.5 * tp)) * clamp(px / 25, 0.06, 1);
+        }
       }
     }
+    this.heroes = out;
+    this.flash = Math.min(flash, 2.5);
+  };
+  /* The life of one nuclear cloud (Glasstone & Dolan ch. 2).  The flash and
+     fireball play in real time; after 2.5 s the clock runs faster so the
+     several-minute climb of the cloud fits in about twenty seconds.  All
+     lengths in planet radii: the physical size times the on-screen
+     enlargement exag (1 in close-up).  info: {fireball, crater, plumeTop (m),
+     vacuum, target, yieldMt}; tw: wall seconds since detonation. */
+  RN.blastState = function (info, tw, R, exag, w) {
+    const tp = pulseTime(info);
+    const Htrue = Math.max(info.plumeTop || 2e4, 300);
+    const H = Htrue / R * exag, F = (info.fireball || 0) / R * exag, crater = (info.crater || 0) / R * exag;
+    const tauR = 100 * Math.sqrt(Htrue / 2e4);                /* ~100 s for a 20 km cloud */
+    const K = Math.max(1, 3 * tauR / 20);
+    const t = tw < 2.5 ? tw : 2.5 + (tw - 2.5) * K;
+    const g = 1 - Math.exp(-t / tauR);
+    const vac = !!info.vacuum;
+    const fbR = F * Math.pow(1 - Math.exp(-t / (0.25 * tp)), 0.4);
+    const capMinor = vac ? 0 : lerp(fbR, 0.2 * H, sstep(0, 0.3, g));
+    const capMajor = vac ? 0 : 0.42 * H * sstep(0.03, 0.6, g);
+    const capH = vac ? crater : Math.max(lerp(0.55 * F, 0.82 * H, g), capMinor * 0.6);
+    const stemR = vac ? 0 : 0.07 * H * sstep(0.02, 0.25, g);
+    const skirtR = vac ? 0 : 0.8 * H * (1 - Math.exp(-t / (0.35 * tauR)));
+    const skirtS = vac ? 0 : Math.exp(-t / (1.2 * tauR)) * sstep(0, 0.04, g);
+    const ringR = vac ? 0 : Math.min(2 * H, F * 1.2 + 350 * t / R * exag);
+    const ringS = vac ? 0 : Math.exp(-t / (4 * tp + 3)) * sstep(0.02, 0.3, t);
+    const E = vac ? 10 * Math.exp(-t / 0.15) + 1.5 * Math.exp(-t / 3)
+      : 14 * Math.exp(-t / (0.7 * tp)) + 3 * Math.exp(-t / (5 * tp)) + 0.8 * Math.exp(-t / (25 * tp + 10));
+    const temp = clamp(Math.log10(1 + E) / 1.2, 0, 1);
+    const fade = tw < 45 ? 1 : Math.max(0, 1 - (tw - 45) / 15);
+    const maxZ = capH + capMinor * 1.8;
+    const maxRh = Math.max(capMajor + capMinor * 1.8, skirtR * 1.35, stemR * 3, 1e-9);
+    const d = info.dir || [0, 1, 0];
+    return {
+      t, K: tw < 2.5 ? 1 : K, g, tp, tauR, H, F, crater, E, top: capH + capMinor,
+      uniforms: {
+        A: [d[0], d[1], d[2], H], Bv: [capH, capMajor, capMinor, stemR],
+        C: [skirtR, skirtS, ringR, ringS], D: [E, temp, fade, vac ? 2 : (info.target === 'ocean' || info.target === 'ice') ? 1 : 0],
+        Ev: cloudColour(info, g, w).concat([3 * t / tauR]),
+        Fv: [maxZ / 2, Math.hypot(maxZ / 2, maxRh) * 1.05, crater, g]
+      }
+    };
+  };
+
+  /* the clock of the newest clicked blast, for the HUD */
+  View.prototype.heroClock = function () {
+    const now = performance.now() / 1000;
+    const e = this.effects.filter((x) => x.hero && now - x.t0 < HERO_LIFE && x.simT !== undefined).pop();
+    return e ? { t: e.simT, k: e.speedK, tag: e.tag, exag: e.exag || 1 } : null;
   };
 
   View.prototype._scars = function () {
@@ -2341,8 +2761,7 @@ void main() {
     gl.uniform2f(U.uRes, W, H);
     u3('uCamPos', B.pos); u3('uCamR', B.R); u3('uCamU', B.U); u3('uCamF', B.F);
     u1('uTanF', B.tanF); u1('uSpin', this.spin); u1('uTime', now % 10000);
-    const pix = Math.max(this.cam.dist - 1, 0.005) * 2 * B.tanF / H;
-    u1('uOct', clamp(1 + Math.log2(0.5 / (1.6 * pix)) / Math.log2(2.03), 6, 10));
+    u1('uOct', 6);
     u1('uExposure', 1.1);
     u3('uSun', this.sun);
     const boost = clamp(Math.pow(vs.sunBoost || 1, 0.4), 0.05, 3);
@@ -2359,7 +2778,32 @@ void main() {
     u3('uCapCol', w.polarTrap ? r.c3 : [0.93, 0.94, 0.97]);
     u1('uCloud', vs.cloud); gl.uniform1i(U.uCloudKind, vs.cloudKind);
     const tau = vs.pPa > 0.5 ? Math.max(vs.atmoTau, 0.02) : 0;
-    u1('uAtmTau', tau); u1('uAtmH', Math.max(vs.atmoShell / 4, 0.002)); u3('uAtmCol', vs.atmoCol);
+    const alt = Math.max(len(B.pos) - 1, 0);
+    /* from orbit the sky is drawn with an enlarged scale height so the limb
+       shows; near the ground it shrinks to the real one, which sets how
+       hazy the distance looks */
+    const Hvis = Math.max(vs.atmoShell / 4, 0.002), Hreal = Math.max(vs.scaleH || Hvis, 5e-5);
+    const deck = vs.cloudKind > 0 && vs.cloud > 0.5;
+    u1('uAtmTau', tau); u1('uAtmH', lerp(Hreal, Hvis, sstep(0.02, 0.5, alt))); u3('uAtmCol', vs.atmoCol);
+    u1('uAtmTauDisk', deck && alt > 0.012 ? Math.min(tau, 0.25) : tau);
+    u1('uCloudVis', sstep(0.004, 0.025, alt));
+    u1('uCamAlt', alt);
+    u1('uFwd', w.key === 'mars' ? 0.55 : deck ? 0.3 : 0.1);
+    u1('uFlash', this.flash || 0);
+    const hs = this.heroes || [];
+    gl.uniform1i(U.uNB, hs.length);
+    const keys = ['A', 'Bv', 'C', 'D', 'Ev', 'Fv'], names = ['uBA', 'uBB', 'uBC', 'uBD', 'uBE', 'uBF'];
+    keys.forEach((k, j) => {
+      const buf = this.bBuf[j];
+      buf.fill(0);
+      hs.forEach((hh, i) => buf.set(hh[k], i * 4));
+      gl.uniform4fv(U[names[j]], buf);
+    });
+    if (this.noiseTex) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_3D, this.noiseTex);
+      gl.uniform1i(U.uNoise, 0);
+    }
     u1('uGlow', vs.glow); u1('uFallout', this.showFallout ? Math.max(vs.fallout, 0) : 0);
     u1('uBump', r.crater > 0.5 ? 0.05 : 0.03);
     const sc = this._scars();
@@ -2370,8 +2814,18 @@ void main() {
     gl.uniform1i(U.uNScar, sc.length);
     gl.uniform4fv(U.uScar, this.scarBuf);
     gl.uniform1i(U.uDebug, this._debug ? 1 : 0);
-    if (this._debug) u1('uOct', 6);
+    const tq = this.tq;
+    if (tq && this._q && gl.getQueryParameter(this._q, gl.QUERY_RESULT_AVAILABLE)) {
+      if (!gl.getParameter(tq.GPU_DISJOINT_EXT)) {
+        const ms = gl.getQueryParameter(this._q, gl.QUERY_RESULT) / 1e6;
+        this.gpuMs = this.gpuMs === undefined ? ms : this.gpuMs + (ms - this.gpuMs) * 0.15;
+      }
+      gl.deleteQuery(this._q); this._q = null;
+    }
+    const timing = tq && !this._q && !this._debug;
+    if (timing) { this._q = gl.createQuery(); gl.beginQuery(tq.TIME_ELAPSED_EXT, this._q); }
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+    if (timing) gl.endQuery(tq.TIME_ELAPSED_EXT);
   };
 
   /* Draw one frame in "class" colours and compare n random pixels with what
@@ -2470,13 +2924,16 @@ void main() {
     }
     this._drawMirror(g, B);
 
-    const disc = { x: this.cssW / 2, y: this.cssH / 2, r: (this.cssH / 2) * Math.tan(Math.asin(1 / this.cam.dist)) / B.tanF };
+    /* the planet's outline is a centred circle only when the camera looks at its centre */
+    const disc = this.fcs || this.fly || (B.tilt || 0) > 0.01 ? null
+      : { x: this.cssW / 2, y: this.cssH / 2, r: (this.cssH / 2) * Math.tan(Math.asin(1 / this.cam.dist)) / B.tanF };
     const keep = [];
     for (const e of this.effects) {
       const a = now - e.t0;
-      const life = e.type === 'comet' ? 14 : (e.vacuum ? 10 : 12 + 3 * pulseTime(e));
+      const life = e.hero ? HERO_LIFE : e.type === 'comet' ? 14 : (e.vacuum ? 10 : 12 + 3 * pulseTime(e));
       if (a > life) continue;
       keep.push(e);
+      if (e.type === 'blast' && a < 0) continue;              /* scheduled, not yet */
       if (e.type === 'comet' && a < 0) this._drawCometApproach(g, e, a, B);
       else this._drawBlast(g, e, Math.max(a, 0), B, disc);
     }
@@ -2512,6 +2969,7 @@ void main() {
     const n = this.toWorld(e.dir);
     const base = this.project(n, B);
     if (!base) return;
+    const vol = e.hero && this.mode === 'webgl2' && !this.lost;   /* drawn by the shader, not here */
     const facing = this.visible(add(n, mul(n, 1e-4)), B);
     const R = w.R;
     const plR = Math.max(e.plumeTop || 1, 1) / R, fbR = (e.fireball || 0) / R, crR = (e.crater || 1) / R;
@@ -2529,10 +2987,10 @@ void main() {
 
     /* 1. the flash lights up the ground around it */
     const flash = Math.min(1, a / 0.02) * (0.55 * Math.exp(-a / 0.08) + 0.45 * Math.exp(-a / (1.3 * tp))) + 0.15 * Math.exp(-a / (4 * tp));
-    if (facing && flash > 0.01) {
+    if (facing && flash > 0.01 && !vol) {
       const gr = Math.max((fbR || crR * 2) * exag * 5, 12 / base.s);
       g.save();
-      g.beginPath(); g.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); g.clip();
+      if (disc) { g.beginPath(); g.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); g.clip(); }
       g.globalCompositeOperation = 'lighter';
       this._ellipse(g, n, n, gr, B, (gg) => {
         const rg = gg.createRadialGradient(0, 0, 0, 0, 0, 1);
@@ -2544,12 +3002,14 @@ void main() {
       g.restore();
     }
 
-    if (!e.vacuum) {
+    if (!e.vacuum && vol) {
+      /* fireball, shock ring and mushroom cloud are ray-marched in the shader */
+    } else if (!e.vacuum) {
       /* 2. the blast wave — a condensation or dust ring racing outward */
       if (facing && a < 3.2) {
         const rr = Math.max(fbR * exag, 4 / base.s) * (1.2 + 7 * a / 3.2);
         g.save();
-        g.beginPath(); g.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); g.clip();
+        if (disc) { g.beginPath(); g.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); g.clip(); }
         this._ellipse(g, n, n, rr, B, (gg) => {
           const rg = gg.createRadialGradient(0, 0, 0.72, 0, 0, 1);
           const cc = (steam || w.key === 'earth') ? [240, 244, 250] : smokeRGB;
@@ -2582,7 +3042,7 @@ void main() {
           const off = Math.min(top * Math.sqrt(1 - c * c) / c, 4 * top);
           const S = norm(add(n, mul(away, off)));
           g.save();
-          g.beginPath(); g.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); g.clip();
+          if (disc) { g.beginPath(); g.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2); g.clip(); }
           this._ellipse(g, S, S, capR * 1.05, B, (gg) => {
             const rg = gg.createRadialGradient(0, 0, 0.2, 0, 0, 1);
             rg.addColorStop(0, `rgba(0,0,0,${(0.42 * env).toFixed(3)})`);
@@ -2649,7 +3109,7 @@ void main() {
     } else {
       /* in vacuum: a brief ball of vaporised rock, then ejecta on
          ballistic arcs — no mushroom, nothing to hold it up */
-      if (a < 0.9) {
+      if (a < 0.9 && !vol) {
         const C = mul(n, 1 + crR * exag * 0.6);
         const cp = this.project(C, B);
         if (cp && this.visible(C, B)) {
@@ -2745,10 +3205,13 @@ void main() {
     g.save();
     if (behind) {
       /* the planet hides whatever of it lies behind the disc */
-      const r = (this.cssH / 2) * Math.tan(Math.asin(1 / this.cam.dist)) / B.tanF;
-      g.beginPath(); g.rect(0, 0, this.cssW, this.cssH);
-      g.arc(this.cssW / 2, this.cssH / 2, r, 0, Math.PI * 2, true);
-      g.clip('evenodd');
+      const pc0 = this.project([0, 0, 0], B);
+      if (pc0) {
+        const r = (this.cssH / 2) * Math.tan(Math.asin(1 / Math.max(len(B.pos), 1.0001))) / B.tanF;
+        g.beginPath(); g.rect(0, 0, this.cssW, this.cssH);
+        g.arc(pc0.x, pc0.y, r, 0, Math.PI * 2, true);
+        g.clip('evenodd');
+      }
     }
     if (!shade) {
       const pc = this.project([0, 0, 0], B);
@@ -3041,13 +3504,16 @@ void main() {
     $('presets').querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', Math.abs(PRESETS[+c.dataset.i][1] - bombMt) / bombMt < 0.02));
   }
 
+  let closeUps = true;
   function detonateAt(pick) {
     const rep = sim.detonate(pick.lat, pick.lon, bombMt, pick.cls.kind);
     spawn.n = sim.nukesFired;
     view.addBlast(pick.dir, {
       fireball: rep.fireball, crater: rep.crater, plumeTop: rep.plumeTop, vacuum: rep.vacuum,
-      target: pick.cls.kind, yieldMt: bombMt, tag: yieldStr(bombMt)
+      target: pick.cls.kind, yieldMt: bombMt, tag: yieldStr(bombMt),
+      delay: closeUps ? 2.1 : 0                     /* let the camera arrive first */
     });
+    if (closeUps) view.focusOn(pick.dir, rep.plumeTop);
     showBlast(rep, pick);
     update(true);
     return rep;
@@ -3083,9 +3549,11 @@ void main() {
       (exag > 1.05 ? `The blast is drawn <b>×${words(exag)}</b> larger than life at this zoom — press <i>true scale</i> or zoom in to see its real size. ` : 'Drawn at true scale. ') +
       (w.key === 'earth' ? '<br><span class="warn">On Earth the real climate danger is soot from burning cities — nuclear winter — which this model does not include.</span>' : '') +
       (rep.surface === 'CO₂ polar ice' ? '<br>While the cap survives it pins the pressure to its frost point, so most of this CO₂ will snow back out.' : '') +
-      `</div>`;
+      `</div>` +
+      `<div class="btnrow"><button class="btn" id="blastWatch">▶ watch it close up</button></div>`;
     $('blast').style.display = 'block';
     $('blastX').onclick = hideBlast;
+    $('blastWatch').onclick = () => view.focusOn(pick.dir, rep.plumeTop);
   }
 
   /* --------------------------- view controls --------------------------- */
@@ -3142,6 +3610,9 @@ void main() {
   toggle('vTrue', () => view.trueScale, (v) => view.trueScale = v);
   toggle('vFall', () => view.showFallout, (v) => view.showFallout = v);
   $('vReset').onclick = () => view.resetView();
+  toggle('vClose', () => closeUps, (v) => closeUps = v);
+  $('vOrbit').onclick = () => view.exitFocus();
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') view.exitFocus(); });
 
   function updateTip() {
     const tip = $('tip');
@@ -3296,7 +3767,14 @@ void main() {
     $('hudTL').innerHTML = `<b>${w.name}</b><div class="st">t + ${years(sim.t)} · ${press(s.pPa)} · ${fmt(s.C, 1)} °C</div>` +
       `<div class="see">${describe(vs, w)}</div>`;
     const recent = view.effects.length > 0;
-    $('hudTR').innerHTML = (view.trueScale ? '<span class="sc">true scale</span><br>blasts drawn at their real size'
+    const clk = view.heroClock();
+    const clock = (t) => t < 60 ? `${t.toFixed(1)} s` : `${Math.floor(t / 60)} min ${String(Math.floor(t % 60)).padStart(2, '0')} s`;
+    $('vOrbit').style.display = view.fcs ? '' : 'none';
+    $('hint').textContent = view.fcs ? 'drag to circle the blast · scroll to move in or back out · Esc for orbit'
+      : 'click to detonate · drag to turn · scroll to zoom';
+    $('hudTR').innerHTML = (clk ? `<span class="sc">${clk.tag || ''} · T+ ${clock(clk.t)}</span>` +
+        (clk.k > 1.01 ? `<br>cloud's climb shown ×${Math.round(clk.k)} faster` : '<br>real time') + '<br>' : '') +
+      (view.trueScale ? '<span class="sc">true scale</span><br>blasts drawn at their real size'
       : recent && view.lastExag > 1.05 ? `<span class="sc">blasts ×${words(view.lastExag)} life size</span><br>zoom in or press <i>true scale</i>`
         : 'blast effects are enlarged to be visible') +
       (view.mode !== 'webgl2' ? `<br><span class="warn">WebGL2 unavailable — coarse CPU globe</span>` : '');
@@ -3521,7 +3999,10 @@ void main() {
       return detonateAt({ lat, lon, dir, cls });
     },
     pickCenter: () => view.pick(view.cssW / 2, view.cssH / 2),
+    focus: (lat, lon, plumeTop) => view.focusOn(RN.dirFromLatLon(lat, lon), plumeTop),
+    exitFocus: () => view.exitFocus(),
     lookAt: (lat, lon, dist) => {
+      view.fcs = null; view.fly = null;
       const d = view.toWorld(RN.dirFromLatLon(lat, lon));
       view.cam.pitch = Math.max(-1.45, Math.min(1.45, Math.asin(d[1])));
       view.cam.yaw = Math.atan2(d[0], d[2]);

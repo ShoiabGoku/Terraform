@@ -122,5 +122,36 @@ function run(k, apply, yrs) {
     `Mars ${(m.fireball / e.fireball).toFixed(1)}× Earth's; Moon ejecta apex ${(mo.plumeTop / 1e3).toFixed(0)} km`);
 }
 
+/* ---- 6. the life of a mushroom cloud, as the close-up camera plays it ---- */
+{
+  const f = RN.FRAG;
+  check('no acos in the shader (it loses all precision near 1, which painted a 40 km crater)', !/\bacos\s*\(/.test(f));
+
+  const w = PL.WORLDS.earth, R = w.R;
+  const info = Object.assign({ yieldMt: 1, target: 'rock', dir: [0, 1, 0] }, S.blastScale(w, new Sim('earth').snapshot(), 1));
+  const at = (tw) => RN.blastState(info, tw, R, 1, w);
+  const toWall = (tsim) => { const K = at(10).K; return 2.5 + (tsim - 2.5) / K; };   /* wall time that shows sim time tsim */
+  const s0 = at(0.5), s60 = at(toWall(60)), s600 = at(toWall(600));
+  const km = (x) => (x * R / 1000).toFixed(1) + ' km';
+  const capW = (st) => 2 * (st.uniforms.Bv[1] + st.uniforms.Bv[2]);
+  check('1 Mt, first half second: a blinding fireball near the ground',
+    s0.E > 5 && s0.top < 0.2 * s0.H && Math.abs(s0.uniforms.Bv[2] * R - 0.9 * info.fireball) < 0.5 * info.fireball,
+    `emission ${s0.E.toFixed(1)}, fireball radius ${km(s0.uniforms.Bv[2])}, top ${km(s0.top)}`);
+  check('after 1 minute the cloud is about half-way up (Glasstone: ~7 of ~15 miles)',
+    s60.top / s60.H > 0.35 && s60.top / s60.H < 0.62,
+    `top ${km(s60.top)} of ${km(s60.H)} = ${(100 * s60.top / s60.H).toFixed(0)}%`);
+  check('after 10 minutes it has stabilised: top ≈ cloud height, cap about as wide as it is high',
+    Math.abs(s600.top / s600.H - 1) < 0.1 && s600.E < 1.5 && capW(s600) / s600.H > 0.9 && capW(s600) / s600.H < 1.6,
+    `top ${km(s600.top)}, cap ${km(capW(s600))} across, glow ${s600.E.toFixed(2)}`);
+  check('the climb is shown sped up (~15× for 1 Mt) so ten minutes play in well under a minute',
+    s60.K > 10 && s60.K < 20 && toWall(600) < 45, `×${s60.K.toFixed(1)}; T+10 min reached ${toWall(600).toFixed(0)} s after the flash`);
+
+  const mw = PL.WORLDS.moon;
+  const vinfo = Object.assign({ yieldMt: 1, target: 'rock', dir: [0, 1, 0] }, S.blastScale(mw, new Sim('moon').snapshot(), 1));
+  const vs = RN.blastState(vinfo, 5, mw.R, 1, mw);
+  check('in vacuum there is no mushroom cloud at all', vs.uniforms.Bv[2] === 0 && vs.uniforms.D[3] === 2,
+    'kind = vacuum: only the flash, the glowing crater and ballistic ejecta');
+}
+
 console.log(`\n${pass}/${total} render checks passed`);
 process.exit(pass === total ? 0 : 1);
