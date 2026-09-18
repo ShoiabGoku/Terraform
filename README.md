@@ -1,125 +1,177 @@
-# TERRAFORM — can you nuke Mars into having an atmosphere?
+# TERRAFORM — bomb, shade or warm a world, and watch it change
 
-A planetary atmosphere sandbox for testing terraforming hypotheses against actual numbers.
-Pick a world, pull levers — nuclear detonations, orbital mirrors, greenhouse-gas factories,
-redirected comets — and watch what the physics does.
+A planetary atmosphere sandbox for testing terraforming ideas against real numbers, on
+**15 worlds**. Drop a nuclear device anywhere on a 3-D globe and see exactly what it does. Run a
+campaign of thousands. Build orbital mirrors or a sunshade, redirect comets, make greenhouse
+gases — then watch the planet respond: polar caps shrink, air freezes onto the ground, seas
+fill the lowlands, oceans boil, rock starts to glow.
 
 ```bash
 node serve.js     # then open http://localhost:8124
 ```
 
 Or just open **`terraform.html`** — one self-contained file, no server, no dependencies.
+Needs WebGL2 for the full globe; without it a coarser globe is drawn on the CPU.
 
 ---
 
-## The short answer
+## What you are looking at
+
+The globe is ray-cast per pixel in a WebGL2 shader, and **every layer on it is read from the
+simulation**, not painted:
+
+| On the globe | Comes from |
+|---|---|
+| polar CO₂ / N₂ caps | the ice mass left — the edge moves as it sublimes |
+| frost over everything | the air itself condensing (Venus under a sunshade) |
+| seas | the ocean volume, filling the lowest terrain first |
+| liquid-nitrogen seas | condensed N₂ above its triple point (Titan, dimmed) |
+| ice sheets, sea ice, snow | the ice mass and the latitude where it drops below 0 °C |
+| clouds | water vapour greenhouse; Venus's acid deck; Titan's haze |
+| the sky at the limb | optical depth and scale height of the real air column |
+| glowing ground | surface above the Draper point (798 K) |
+| craters | every single detonation you fire |
+
+**Click the planet to detonate a device there.** It works out what you hit — polar ice, ocean,
+water ice or rock — using JavaScript twins of the shader's noise functions, so the click hits
+exactly what the pixel shows (checked in the browser with `__TF.view.parityTest(300)`: 99–100%
+agreement across worlds and states). You get the fireball, the blast ring, a mushroom cloud that
+casts a shadow, or — on an airless world — ejecta on ballistic arcs, and a report:
+
+> **1 Mt on Mars' polar cap:** fireball 4.6 km (4.3× Earth's — the air is thin), crater 271 m,
+> cloud top ~26 km. Vaporises **342 kt of CO₂**, 7×10⁻⁷ % of the cap, and raises the pressure by
+> 9×10⁻⁶ Pa. Releasing all of it would take **136 million devices = 90,772 world arsenals.**
+
+Blast effects are enlarged so you can see them (the HUD says by how much); press **true scale**
+or zoom in and they shrink to their real size — a 50 Mt mushroom on Mars is a few pixels from
+orbit. The fireball flash plays in real time (its thermal pulse lasts ~0.9 s for 1 Mt, ~5 s for
+50 Mt); the cloud's climb is sped up.
+
+---
+
+## Mars: can you nuke it into having an atmosphere?
 
 **No.** But not for the reason most people give.
 
-| What you do | Energy spent | Result |
+| What you do | Energy | After 2000 years |
 |---|---|---|
-| Nuke the poles (67 world arsenals) | 1.0×10⁵ Mt | **6.11 mbar, −57 °C — no change at all** |
+| Nuke the poles (Musk: 10,000 × 10 Mt) | 1.0×10⁵ Mt | **6.11 mbar, −57 °C — no change** |
 | Fire every weapon on Earth | 1500 Mt | no change |
-| Build and fire a *million* arsenals | 2.0×10⁹ Mt | 18.1 mbar, −55 °C |
-| Orbital mirrors instead | **0 Mt** | 19.2 mbar, **−48 °C** |
-| Everything at once, for 1000 years | 6.4×10⁹ Mt | 112 mbar, −9 °C |
+| Build and fire a *million* arsenals | 2.0×10⁹ Mt | 18.1 mbar, −54 °C |
+| Orbital mirrors, +12% sunlight | **0 Mt** | 19.7 mbar, **−47 °C** |
+| 1,000 comets over 500 years | 3.1×10⁹ Mt | 26.2 mbar, −53 °C |
+| Everything at once, for 1000 years | 6.4×10⁹ Mt | 118 mbar, −2 °C, first seas |
 
-The nuclear option is *strictly dominated*: a mirror array does better, for no weapons and no
-fallout. Three things make the bombs pointless.
+**1. The polar cap is a thermostat.** While CO₂ ice remains, the pressure is pinned to the
+vapour pressure at the cap temperature. Vaporise half the cap and it snows back out within
+centuries. To change anything you must remove *all* of it.
 
-**1. The polar cap is a thermostat.** While CO₂ ice remains, the surface pressure is pinned to
-the vapour pressure at the cap temperature. Vaporise half the cap and it snows back out within
-centuries — the simulation does exactly this. To change anything permanently you must remove
-*all* of it.
+**2. There isn't enough CO₂.** Following Jakosky & Edwards (2018), everything reachable —
+atmosphere, polar ice, adsorbed regolith — totals about **58 mbar**; baking every carbonate on
+the planet reaches **208 mbar**. Earth is 1013.
 
-**2. There isn't enough CO₂.** This is the wall. Following Jakosky & Edwards (2018), everything
-reachable — atmosphere, polar ice, adsorbed regolith — totals about **58 mbar**. Bake every
-carbonate rock on the planet and you reach **208 mbar**. Earth is 1013. Subliming just the south
-polar cap costs **6.8 million megatons**, about **4,500× the world arsenal**, at a physically
-impossible 100% coupling.
+**3. Even if you had it, CO₂ can't warm Mars.** A full bar of pure CO₂ gives **−37 °C**, because
+Rayleigh scattering raises the albedo about as fast as the greenhouse grows (Forget et al. 2013
+find the same ceiling).
 
-**3. Even if you had it, CO₂ can't warm Mars.** A full bar of pure CO₂ gives −39 °C, because
-Rayleigh scattering raises the albedo about as fast as the greenhouse grows. Forget et al. (2013)
-found the same ceiling. Every gram of CO₂ on Mars still leaves it 45 K short of melting ice.
+**The thing everybody gets backwards:** "the solar wind would strip it away" is false on any
+timescale that matters — at MAVEN's measured rates a fresh 1 bar atmosphere lasts ~4×10¹⁰ years.
+Keeping an atmosphere is easy. *Making* one is the hard part.
 
-### The thing everybody gets backwards
+The mirror option strictly dominates: a 2,348 km mirror (43 Mt of foil) does better than a
+million arsenals, for no weapons and no fallout.
 
-"Mars can't hold an atmosphere, the solar wind stripped it away" is **false on any timescale that
-matters**. At MAVEN's measured loss rate, stripping a fresh 1 bar atmosphere would take
-**4×10¹⁰ years** — three times the age of the universe. Keeping an atmosphere is easy. *Making*
-one is the hard part.
+---
 
-Why Mars looks the way it does is better explained by the Jeans parameter λ = gRm/kT: Mars holds
-CO₂ at **λ = 190** (billions of years) but hydrogen at **λ = 4.3** (immediately). It kept its
-carbon dioxide and lost its water.
+## The other worlds
 
-### What would actually work
+| World | Experiment | Result |
+|---|---|---|
+| **Venus** | a thousand world arsenals | 92 bar, 464 °C — nothing |
+| | sunshade blocking 90% | still 92 bar, 141 °C |
+| | sunshade blocking 97% | 92 bar, 34 °C |
+| | sunshade blocking **98%** | **the CO₂ freezes out**: 2.1 bar of N₂ left at −119 °C |
+| **Earth** | Sun 10% brighter | ice sheets melt, 23 °C |
+| | Sun 18% brighter | 30 °C, oceans intact |
+| | Sun 20% brighter | **runaway greenhouse** — past the 282 W/m² limit the oceans start to boil |
+| | Sun 25% brighter | 254 bar of steam, 1292 °C, oceans gone, surface glowing |
+| | 20% sunshade | −5 °C, ice to 28° latitude |
+| **Moon** | 2,500 comets over 500 years | 35.7 mbar, +13 °C, liquid water |
+| **Titan** | four times the sunlight | −149 °C — the air was never the problem |
+| | Sun dimmed by 60% | the nitrogen rains out: 258 mbar, liquid-N₂ seas over 6% |
+| **Pluto** | five times the sunlight | Sputnik Planitia sublimes: 20.5 mbar of N₂ at −225 °C |
+| | a thousand arsenals on Sputnik Planitia | 1 Pa — it snows straight back out |
+| **Triton** | five times the sunlight | 27.5 mbar of N₂ |
+| **TRAPPIST-1e** | 2,500 comets | an atmosphere from nothing: 14.6 mbar, −34 °C |
 
-A **+9.6% increase in sunlight** tips the polar cap into complete sublimation — a mirror
-2,101 km across, 35 Mt of foil. It still only reaches 19 mbar, but it costs nothing to run and
-leaves nothing radioactive. Perfluorocarbon factories are the best lever per kilogram: 20 Gt of
-gas beats 46,600 Gt of ice the bombs were trying to move. And a single 10 km comet lands with
-2,100× the world arsenal in kinetic energy while *delivering* volatiles rather than merely
-rearranging them.
+Also: Mercury, Ceres, Io, Europa, Ganymede, Callisto and Enceladus, each with a stated
+confidence — the model is best for Mars, Venus, Earth and Titan, rougher elsewhere.
 
 ---
 
 ## The model
 
-A global-mean box model, not a GCM, calibrated so an untouched Mars sits exactly at its observed
-**6.109 mbar and 216 K** as a *stable* fixed point.
+A global-mean box model, not a GCM. Every world is calibrated so that, left alone, it holds its
+observed pressure and temperature as a *stable* fixed point (all 15 are checked over 2000 years).
 
-- **Radiation** — T_eff from albedo and distance, plus a CO₂ greenhouse parameterisation
-  `ΔT = 55(1 − e^(−1.0116 p^0.4619))` K anchored on published results, with albedo rising with
-  pressure from Rayleigh scattering.
-- **The cap** — while CO₂ ice exists, solve `σT_cap⁴ = absorbed + IR_down(p_sat(T_cap))` for the
-  joint cap/atmosphere equilibrium, taking the *stable* root. This is what produces the thermostat
-  behaviour and the tipping point.
-- **Regolith** — a Freundlich isotherm normalised to the world's present state.
-- **Escape** — solar-wind stripping calibrated to MAVEN, plus Jeans escape from λ.
-- **Interventions** — nukes (with coupling efficiency and Cs-137 fallout), mirrors, PFC
-  factories, comet delivery, surface darkening, carbonate calcination.
+- **Greenhouse** — additive CO₂ and H₂O band terms with strong-line pressure broadening
+  (p_eff = √(p_gas·p_total)), scaled by absorbed sunlight, plus collision-induced absorption
+  (CO₂–CO₂, N₂–N₂, H₂O–H₂O) through an Eddington grey atmosphere. Three coefficients are fitted
+  to Venus (737 K), Titan (93.7 K) and Earth (288 K) — and then predict, untuned, Earth's
+  CO₂-doubling response: **+1.42 K** without feedback (literature ~1.2 K), **+1.78 K** with water
+  vapour (~2 K).
+- **Albedo** — clouds and hazes fade as the air goes; Rayleigh scattering brightens thick skies;
+  water clouds appear on worlds that get wet.
+- **Condensation** — saturation curves for CO₂ and N₂ with solid and liquid branches. Polar cold
+  traps (Mars, Pluto, Triton) solve the cap/atmosphere equilibrium, taking the stable root;
+  anywhere else, cool the world enough and the air rains out.
+- **Water** — vapour at calibrated humidity, ice and ocean trading places with the ice line,
+  and the **runaway greenhouse** past the Simpson–Nakajima limit (282 W/m², with hysteresis).
+- **Escape** — Jeans parameter λ plus solar-wind stripping scaled to MAVEN.
+- **Single detonations** — Glasstone & Dolan (1977): fireball 66 m·Y_kt^0.4 scaled for air
+  density, crater 23 m·Y_kt^⅓ scaled for gravity, cloud top from the scale height, and the energy
+  reaching the target divided by the energy needed to vaporise it. Cs-137 at 3.3 PBq per fission
+  megaton.
 
 ### Verification
 
 ```bash
-node -e "require('./src/planets.js');require('./src/climate.js').selfTest(true)"   # 10
-node test/model-test.js                                                            # 22
+node -e "require('./src/planets.js');require('./src/climate.js').selfTest(true)"   # 16 checks
+node test/model-test.js      # 32 — the Mars headline results
+node test/worlds-test.js     # 14 — every world, thresholds, single detonations
+node test/render-test.js     # 13 — the globe shows what the model says
 ```
 
-| Check | Result |
-|---|---|
-| Mars effective temperature | 209.8 K vs NASA's 209.8 K |
-| Present-day state | 6.11 mbar, greenhouse +6.3 K (literature ~5 K) |
-| CO₂ frost point at 6 mbar | 147.9 K — the caps really do sit at ~148 K |
-| 1 bar of pure CO₂ | −39 °C, matching Forget et al. 2013's ceiling |
-| Reachable CO₂ inventory | 58 mbar, per Jakosky & Edwards 2018 |
-| Undisturbed Mars over 2000 yr | 6.11 → 6.11 mbar, no drift |
-| Half the cap removed | recovers to 6.11 mbar within centuries |
-| Solar-wind stripping of 1 bar | 4×10¹⁰ years |
+In the browser, `__TF.view.parityTest(300)` renders the surface classes on the GPU and checks
+them against the click classifier.
 
 ### Sources
 
-- Jakosky & Edwards 2018, *Inventory of CO₂ available for terraforming Mars*, Nature Astronomy 2, 634
+- Jakosky & Edwards 2018, Nature Astronomy 2, 634 — Mars' CO₂ inventory
 - Forget et al. 2013, Icarus 222, 81 — the CO₂ greenhouse ceiling
 - Marinova et al. 2005, JGR 110, E03002 — perfluorocarbon warming
-- MAVEN escape rates; NASA planetary fact sheets
+- Goldblatt et al. 2013, Nature Geoscience 6, 661 — the runaway greenhouse limit
+- Glasstone & Dolan 1977, *The Effects of Nuclear Weapons*
+- NASA planetary fact sheets; MAVEN escape rates; Agol et al. 2021 (TRAPPIST-1e)
 
 ### Honest limits
 
-Global-mean only — no regional climate, dust storms, or atmospheric chemistry. Nitrogen and
-oxygen are not modelled, and you would need both. Venus and Titan are listed for contrast but sit
-outside the parameterisation's valid range. Nuclear coupling efficiency is a slider precisely
-because it is poorly constrained; the conclusion is unchanged across its whole range, which is
-the point.
+Global mean only, and it jumps straight to equilibrium (no thermal inertia). No chemistry, dust
+storms, seasons, ice-albedo feedback, Io's tidal heating, Titan's methane cycle, or nuclear
+winter — on Earth the real danger of a nuclear war is soot, which is not in here. Airless
+worlds' "mean temperature" is a radiative average, not what a thermometer would read at noon.
+Terrain is procedural, not real topography. The nuclear coupling efficiency is a slider because
+it is poorly constrained; the Mars conclusion holds across its whole range.
 
 ```
-src/planets.js   worlds, volatile inventories, thermodynamic data
-src/climate.js   radiation, greenhouse, cap equilibrium, escape + self-test
-src/sim.js       interventions and time integration
-src/app.js       controls, charts, verdict
+src/planets.js   15 worlds: inventories, thermodynamics, how each one looks
+src/climate.js   radiation, greenhouse, condensation, escape + self-test
+src/sim.js       interventions, single detonations, water, time integration
+src/render.js    WebGL2 globe, blast/plume/ejecta/comet effects, CPU fallback
+src/app.js       controls, click-to-detonate, charts, verdict
 test/            verification
 build.js         inlines everything into terraform.html
 ```
 
-`window.__TF` exposes `sim`, `snapshot()`, `setScenario()` and `run(years)` for driving it headlessly.
+`window.__TF` exposes `sim`, `view`, `snapshot()`, `setWorld(key)`, `setScenario(key)`,
+`run(years)`, `detonate(lat, lon, yieldMt)` and `lookAt(lat, lon, dist)` for driving it headlessly.

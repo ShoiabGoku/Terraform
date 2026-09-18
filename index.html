@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TERRAFORM — can you nuke Mars into having an atmosphere?</title>
+<title>TERRAFORM — bomb, shade or warm a planet and watch what happens</title>
+<meta name="description" content="A planetary atmosphere sandbox for 15 worlds. Detonate nuclear devices, build mirrors and sunshades, redirect comets — and watch a physically calibrated planet respond in 3-D.">
 <style>
 :root{
   --bg:#0a0705; --panel:#130e0a; --panel2:#1b1410; --line:#2e231c;
@@ -45,6 +46,7 @@ aside.right{border-right:none;border-left:1px solid var(--line)}
 .sec>h3:hover{color:var(--dim)}
 .sec.closed .body{display:none}
 .sec.closed .tw{transform:rotate(-90deg)}
+.sec.hot>h3{color:var(--amber)}
 .tw{transition:.15s;font-size:9px}
 .body{padding:0 13px 13px}
 
@@ -63,13 +65,57 @@ select:focus{outline:none;border-color:var(--rust)}
 .btn{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:6px 10px;cursor:pointer;font-size:11.5px;color:var(--dim);transition:.13s}
 .btn:hover{border-color:#4a382c;color:var(--ink)}
 .btn.pri{background:rgba(224,122,69,.15);border-color:#7a4326;color:var(--rust)}
+.btn.on{background:rgba(255,179,71,.14);border-color:#7a5a26;color:var(--amber)}
 .btnrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chip{background:var(--panel2);border:1px solid var(--line);color:var(--dim2);padding:3px 9px;border-radius:5px;font-size:11px;cursor:pointer;user-select:none}
 .chip.on{background:rgba(224,122,69,.18);border-color:var(--rust);color:var(--rust)}
 .note{font-size:10.5px;color:var(--dim2);line-height:1.55;margin-top:8px}
 .warn{color:var(--amber)} .err{color:var(--red)}
 
-/* headline verdict */
+/* ---------- the 3-D view ---------- */
+.view{position:relative;height:clamp(360px,64vh,780px);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000;margin-bottom:12px}
+.view canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#fx{cursor:crosshair;touch-action:none}
+#fx.dragging{cursor:grabbing}
+.hud{position:absolute;pointer-events:none;font-size:11px;color:var(--dim);text-shadow:0 1px 3px #000,0 0 8px #000}
+#hudTL{top:10px;left:12px}
+#hudTL b{display:block;font-size:17px;letter-spacing:.06em;color:var(--ink);font-weight:600}
+#hudTL .st{font-family:var(--mono);color:var(--gold);font-size:12px;margin-top:2px}
+#hudTL .see{max-width:360px;line-height:1.5;margin-top:4px;color:var(--dim)}
+#hudTR{top:10px;right:12px;text-align:right;max-width:300px;line-height:1.5}
+#hudTR .sc{font-family:var(--mono);color:var(--amber)}
+#hudBR{right:10px;bottom:10px;pointer-events:auto;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:60%}
+#hudBR .btn{padding:4px 8px;font-size:10.5px;background:rgba(20,14,10,.78);backdrop-filter:blur(3px)}
+#hudBR .btn.on{background:rgba(70,48,20,.85)}
+#hint{left:12px;bottom:10px;font-size:10.5px;color:var(--dim2)}
+#tip{display:none;background:rgba(14,10,8,.9);border:1px solid #3a2a20;border-radius:6px;padding:5px 8px;font-size:11px;color:var(--ink);white-space:nowrap;text-shadow:none}
+#tip i{font-style:normal;color:var(--amber)}
+#blast{left:10px;bottom:34px;width:340px;max-width:calc(100% - 20px);max-height:calc(100% - 90px);overflow:auto;pointer-events:auto;display:none;
+  background:rgba(16,11,8,.92);border:1px solid #5a3a26;border-radius:9px;padding:10px 12px;text-shadow:none;backdrop-filter:blur(4px)}
+#blast h5{margin:0 0 6px;font-size:12.5px;color:var(--amber);display:flex;justify-content:space-between;gap:8px}
+#blast h5 span{font-family:var(--mono);font-weight:400;font-size:10.5px;color:var(--dim2)}
+#blast .x{cursor:pointer;color:var(--dim2);font-size:13px;line-height:1}
+#blast .row{padding:2px 0}
+#blast .row>label{font-size:11px}
+#blast .row .v{font-size:11px}
+#blast .note{margin-top:6px}
+#fallback{display:none;left:50%;bottom:44px;transform:translateX(-50%);font-size:11px;color:var(--amber);text-align:center}
+
+.presets{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.presets .chip{font-size:10.5px;padding:3px 7px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:12px}
+.card h4{margin:0 0 8px;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim2);font-weight:600}
+.card canvas{display:block;width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:1400px){.grid2{grid-template-columns:1fr}}
+
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:12px}
+.stat>div{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+.stat .k{font-size:9.5px;color:var(--dim2);letter-spacing:.08em;text-transform:uppercase}
+.stat .n{font-family:var(--mono);font-size:16px;color:var(--gold);line-height:1.3}
+.stat .u{font-size:10px;color:var(--dim2)}
+
 #verdict{border:1px solid #4a2a1c;border-radius:9px;padding:12px 13px;margin-bottom:12px;
   background:linear-gradient(180deg,rgba(224,122,69,.10),rgba(224,122,69,0))}
 #verdict .lab{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim2)}
@@ -80,34 +126,24 @@ select:focus{outline:none;border-color:var(--rust)}
 .check.ok i{color:var(--green)} .check.no i{color:var(--red)}
 .check.no span{color:var(--dim)}
 
-/* reservoir bars */
 .res{margin:7px 0}
-.res .lab{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim);margin-bottom:3px}
-.res .lab em{font-style:normal;font-family:var(--mono);color:var(--ink)}
+.res .lab{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim);margin-bottom:3px;gap:8px}
+.res .lab em{font-style:normal;font-family:var(--mono);color:var(--ink);text-align:right}
 .bar{height:9px;background:#241a14;border-radius:5px;overflow:hidden;display:flex}
 .bar i{display:block;height:100%}
 
-canvas{display:block;width:100%}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:12px}
-.card h4{margin:0 0 8px;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim2);font-weight:600}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media (max-width:1400px){.grid2{grid-template-columns:1fr}}
-
-.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
-.stat div{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
-.stat .k{font-size:9.5px;color:var(--dim2);letter-spacing:.08em;text-transform:uppercase}
-.stat .n{font-family:var(--mono);font-size:16px;color:var(--gold);line-height:1.3}
-.stat .u{font-size:10px;color:var(--dim2)}
-
-#log{font-family:var(--mono);font-size:10.5px;line-height:1.6;max-height:130px;overflow:auto}
+#log{font-family:var(--mono);font-size:10.5px;line-height:1.6;max-height:150px;overflow:auto}
 #log div{color:var(--dim)} #log .good{color:var(--green)} #log .bad{color:var(--red)}
 #log time{color:var(--dim2);margin-right:8px}
 
 @media (max-width:1080px){
   body{overflow:auto}
+  #app{height:auto}
   main{grid-template-columns:1fr}
   aside{border-right:none;border-bottom:1px solid var(--line)}
   aside.right{border-left:none}
+  .view{height:62vh}
+  #hudTL .see{display:none}
 }
 </style>
 </head>
@@ -115,8 +151,8 @@ canvas{display:block;width:100%}
 <div id="app">
 <header>
   <div class="brand"><b>TERRAFORM</b><span>planetary atmosphere sandbox</span></div>
-  <div class="hg" style="flex:0 0 150px"><label>world</label><select id="world"></select></div>
-  <div class="hg" style="flex:0 0 230px"><label>scenario</label><select id="scenario"></select></div>
+  <div class="hg" style="flex:0 0 190px"><label>world</label><select id="world"></select></div>
+  <div class="hg" style="flex:0 1 300px"><label>scenario</label><select id="scenario"></select></div>
   <div class="hg" style="flex:0 1 190px"><label>speed</label>
     <input type="range" id="speed" min="0" max="1000" value="500" style="flex:1">
     <span class="hval" id="speedV"></span></div>
@@ -128,25 +164,32 @@ canvas{display:block;width:100%}
 
 <main>
   <aside>
+    <div class="sec hot"><h3>Drop one bomb <span class="tw">▾</span></h3><div class="body">
+      <div class="field"><span>yield <em id="sdYV"></em></span><input type="range" id="sdY" min="0" max="1000" value="600"></div>
+      <div class="presets" id="presets"></div>
+      <div class="note">Click anywhere on the planet to detonate there. It works out what you hit —
+        polar ice, ocean, water ice or rock — and what one device really does to it. Drag to turn
+        the globe, scroll to zoom.</div>
+    </div></div>
+
     <div class="sec"><h3>Nuclear campaign <span class="tw">▾</span></h3><div class="body">
       <div class="row"><label>detonations</label><button class="chip" id="nukeOn">off</button></div>
       <div class="field"><span>yield per device <em id="nYV"></em></span><input type="range" id="nY" min="0" max="1000" value="333"></div>
       <div class="field"><span>devices per year <em id="nCV"></em></span><input type="range" id="nC" min="0" max="1000" value="500"></div>
       <div class="field"><span>campaign length <em id="nTV"></em></span><input type="range" id="nT" min="1" max="1000" value="100"></div>
-      <div class="field"><span>energy coupled to ice <em id="nKV"></em></span><input type="range" id="nK" min="1" max="1000" value="50"></div>
+      <div class="field"><span>energy coupled to the target <em id="nKV"></em></span><input type="range" id="nK" min="1" max="1000" value="50"></div>
       <div class="field"><span>fission fraction <em id="nFV"></em></span><input type="range" id="nF" min="0" max="100" value="50"></div>
-      <div class="row"><label>target</label><select id="nTarget" style="width:auto">
-        <option value="cap">polar CO₂ ice</option><option value="rego">regolith</option><option value="carb">carbonate rock</option></select></div>
+      <div class="row"><label>target</label><select id="nTarget" style="width:auto"></select></div>
       <div class="note" id="nukeNote"></div>
     </div></div>
 
-    <div class="sec"><h3>Orbital mirrors <span class="tw">▾</span></h3><div class="body">
-      <div class="row"><label>mirrors</label><button class="chip" id="mirOn">off</button></div>
-      <div class="field"><span>extra sunlight <em id="mFV"></em></span><input type="range" id="mF" min="0" max="1000" value="0"></div>
+    <div class="sec"><h3>Mirrors &amp; sunshades <span class="tw">▾</span></h3><div class="body">
+      <div class="row"><label>in orbit</label><button class="chip" id="mirOn">off</button></div>
+      <div class="field"><span>sunlight <em id="mFV"></em></span><input type="range" id="mF" min="0" max="1000" value="500"></div>
       <div class="note" id="mirNote"></div>
     </div></div>
 
-    <div class="sec"><h3>Greenhouse factories <span class="tw">▾</span></h3><div class="body">
+    <div class="sec closed"><h3>Greenhouse factories <span class="tw">▾</span></h3><div class="body">
       <div class="row"><label>PFC production</label><button class="chip" id="pfcOn">off</button></div>
       <div class="field"><span>output <em id="pRV"></em></span><input type="range" id="pR" min="0" max="1000" value="400"></div>
       <div class="note" id="pfcNote"></div>
@@ -163,19 +206,34 @@ canvas{display:block;width:100%}
       <div class="field"><span>darken the surface <em id="dustV"></em></span><input type="range" id="dust" min="-20" max="20" value="0"></div>
       <div class="row"><label>calcine carbonates</label><button class="chip" id="bakeOn">off</button></div>
       <div class="field"><span>plant output <em id="bRV"></em></span><input type="range" id="bR" min="0" max="1000" value="500"></div>
-      <div class="note">Most of Mars' carbon is chemically bound in rock. Getting it out means
+      <div class="note">Most carbon on a rocky world is chemically bound in rock. Getting it out means
         mining and heating that rock to about 900 K — the single most energy-hungry option here.</div>
     </div></div>
   </aside>
 
   <section id="stage">
-    <div class="card"><canvas id="planet" height="300"></canvas>
-      <div class="stat" id="stats" style="margin-top:12px"></div></div>
+    <div class="view" id="view">
+      <canvas id="gl"></canvas>
+      <canvas id="fx"></canvas>
+      <div class="hud" id="hudTL"></div>
+      <div class="hud" id="hudTR"></div>
+      <div class="hud" id="hudBR">
+        <button class="btn on" id="vSpin" title="Let the planet turn">spin</button>
+        <button class="btn" id="vTrue" title="Draw blasts at their real size">true scale</button>
+        <button class="btn" id="vFall" title="Tint the ground by Cs-137 fallout (invisible in reality)">fallout</button>
+        <button class="btn" id="vReset" title="Reset the camera">reset view</button>
+      </div>
+      <div class="hud" id="hint">click to detonate · drag to turn · scroll to zoom</div>
+      <div class="hud" id="tip"></div>
+      <div class="hud" id="blast"></div>
+      <div class="hud" id="fallback"></div>
+    </div>
+    <div class="stat" id="stats"></div>
     <div class="grid2">
       <div class="card"><h4>Surface pressure</h4><canvas id="chartP" height="170"></canvas></div>
       <div class="card"><h4>Surface temperature</h4><canvas id="chartT" height="170"></canvas></div>
     </div>
-    <div class="card"><h4>Where the CO₂ actually is</h4><div id="reservoirs"></div></div>
+    <div class="card"><h4>Where the volatiles are</h4><div id="reservoirs"></div></div>
     <div class="card"><h4>What it would take</h4><div id="requirement"></div></div>
     <div class="card"><h4>Log</h4><div id="log"></div></div>
   </section>
@@ -187,7 +245,7 @@ canvas{display:block;width:100%}
     </div></div>
     <div class="sec"><h3>Atmosphere <span class="tw">▾</span></h3><div class="body" id="atmos"></div></div>
     <div class="sec"><h3>This world <span class="tw">▾</span></h3><div class="body" id="worldout"></div></div>
-    <div class="sec closed"><h3>Model & sources <span class="tw">▾</span></h3><div class="body" id="about"></div></div>
+    <div class="sec closed"><h3>Model &amp; sources <span class="tw">▾</span></h3><div class="body" id="about"></div></div>
   </aside>
 </main>
 </div>
@@ -195,6 +253,7 @@ canvas{display:block;width:100%}
 <script src="src/planets.js"></script>
 <script src="src/climate.js"></script>
 <script src="src/sim.js"></script>
+<script src="src/render.js"></script>
 <script src="src/app.js"></script>
 </body>
 </html>
