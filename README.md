@@ -124,11 +124,30 @@ energy does the work.
 - The same 311 Mt spent heating the polar cap directly releases 3×10⁻⁵ mbar of CO₂ — which snows
   back out.
 
-| Comet programme (mirrors +25%, PFC plants 100 Mt/yr) | Devices a year | Plutonium a year | Result |
+### Comets or asteroids?
+
+Comets are ice — 80% of one becomes air. Asteroids are rock, but they are next door and there are
+~20,000 known Mars-crossers. A carbonaceous (C-type) asteroid is about 10% water bound in clays;
+a stony (S-type) one is dry and delivers only heat. What matters is the nuclear yield per mbar of
+air delivered, which is ½Δv²/coupling × (mass per mbar)/(volatile fraction):
+
+| Body you move | From a Mars-crossing orbit (30 m/s) | Nudged into the 3:1 resonance (5 m/s) | Pushed straight out of the belt (2.4 km/s) |
 |---|---|---|---|
-| 5 comets/yr for 300 years | 62 | 0.25 t | 63 mbar, **−4 °C**, standing water over 44% |
-| 20 comets/yr for 500 years | 249 | 1.0 t | 132 mbar, **+3 °C**, water over 56% |
-| 50 comets/yr for 1000 years | 621 | 2.5 t | **453 mbar, +15 °C, 87% — no pressure suit needed** |
+| comet (80% volatile) | 5.2×10⁴ Mt per mbar | 1.4×10³ | 3.3×10⁸ |
+| C-type asteroid (10%) | 4.2×10⁵ Mt per mbar | 1.2×10⁴ | 2.7×10⁹ |
+| S-type asteroid (0.5%) | 8.4×10⁶ Mt per mbar | 2.3×10⁵ | 5.3×10¹⁰ |
+
+Dropping a fresh rock from 2.5 AU costs 2.4 km/s and is hopeless — millions of warheads for one
+asteroid. Everything depends on starting with a body that already crosses Mars and acting decades
+ahead, when tens of metres per second are enough.
+
+| Programme (10 km bodies, mirrors +25%, PFC plants 100 Mt/yr) | Devices a year | Plutonium a year | Result |
+|---|---|---|---|
+| 5 comets/yr for 300 yr, 10 m/s nudge | 62 | 0.25 t | 67 mbar, **−4 °C**, standing water over 44% |
+| 20 C-type asteroids/yr for 300 yr, 10 m/s | 1,001 | 4 t | 83 mbar, **−2 °C**, water over 46% |
+| 50 C-type asteroids/yr for 1000 yr, 10 m/s | 2,503 | 10 t | **321 mbar, +12 °C, 77% — no pressure suit** |
+| 50 comets/yr for 1000 yr, 10 m/s | 5,631 | 23 t | **587 mbar, +18 °C, 97%** |
+| 50 S-type (dry) asteroids/yr for 500 yr | 2,700 | 11 t | 44 mbar, −36 °C — heat, no air |
 
 Every one of those device counts is *below* what the world's reactors already make the plutonium
 for. The limits that bite are the comets themselves (how many can be found and retargeted), the

@@ -74,6 +74,12 @@
       { key: 'comets', name: 'Redirect comets for 500 years', apply: (p) => { p.cometOn = true; p.cometMass_kg = 2.6e14; p.cometPerYear = 2; }, speed: 10 },
       { key: 'realCentury', name: 'A century of everything we could build, at the poles', speed: 10,
         apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 25; p.nukeCount = 4000; p.nukeYears = 100; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; } },
+      { key: 'rocks300', name: 'Asteroids: 20 Mars-crossers a year for 300 years', speed: 10,
+        apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 20; p.cometDeltaV_ms = 10;
+          p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+      { key: 'rocksMillennium', name: 'Asteroids: 50 a year for a millennium', speed: 20,
+        apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 50; p.cometDeltaV_ms = 10;
+          p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
       { key: 'cometMovers', name: 'Bombs as comet-movers: 5 a year for 300 years', speed: 10,
         apply: (p) => { p.cometOn = true; p.cometPerYear = 5; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
       { key: 'cometMillennium', name: 'The full programme: 50 comets a year for a millennium', speed: 20,
@@ -122,6 +128,18 @@
     list.push({ key: 'comets', name: '1,000 comets over 500 years', apply: (p) => { p.cometOn = true; p.cometPerYear = 2; }, speed: 20 });
     return list;
   }
+  /* pick what you are moving: its density, how much of it is volatile, and
+     how fast it arrives all follow from the class of body */
+  function setBody(p, kind, source, dia) {
+    const b = MS.BODIES[kind];
+    p.bodyKind = kind;
+    if (source) { p.bodySource = source; p.cometDeltaV_ms = MS.SOURCES[source].dv; }
+    if (dia) p.bodyDia_m = dia;
+    p.cometMass_kg = (Math.PI / 6) * Math.pow(p.bodyDia_m, 3) * b.rho;
+    p.cometVolatileFrac = b.vol;
+    p.cometSpeed_kms = b.v;
+  }
+
   function targetsFor(w, st) {
     const t = [];
     if (w.res0.cap_co2 > 0 || w.res0.cap_n2 > 0 || st.cap_co2 > 0 || st.cap_n2 > 0)
@@ -152,6 +170,8 @@
     $('scenario').innerHTML = scenarios.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
     const t = targetsFor(sim.w, sim.st);
     $('nTarget').innerHTML = t.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+    $('bKind').innerHTML = Object.entries(MS.BODIES).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
+    $('bSrc').innerHTML = Object.entries(MS.SOURCES).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
     if (!t.some(([k]) => k === sim.plan.nukeTarget)) sim.plan.nukeTarget = t[0][0];
   }
 
@@ -227,7 +247,7 @@
     ['nF', (v) => sim.plan.nukeFission = v / 100, () => sim.plan.nukeFission * 100],
     ['mF', mirSet, mirGet],
     ['pR', (v) => sim.plan.pfcRate_kg_yr = v === 0 ? 0 : logMap(v, 1e6, 1e14), () => logInv(Math.max(sim.plan.pfcRate_kg_yr, 1e6), 1e6, 1e14)],
-    ['cD', (v) => sim.plan.cometMass_kg = (Math.PI / 6) * Math.pow(logMap(v, 100, 5e4), 3) * 500, () => logInv(Math.cbrt(sim.plan.cometMass_kg / 500 / (Math.PI / 6)), 100, 5e4)],
+    ['cD', (v) => { sim.plan.bodyDia_m = logMap(v, 100, 5e4); setBody(sim.plan, sim.plan.bodyKind); }, () => logInv(sim.plan.bodyDia_m, 100, 5e4)],
     ['cN', (v) => sim.plan.cometPerYear = v === 0 ? 0 : logMap(v, 0.001, 100), () => logInv(Math.max(sim.plan.cometPerYear, 0.001), 0.001, 100)],
     ['cV', (v) => sim.plan.cometDeltaV_ms = logMap(v, 1, 1000), () => logInv(sim.plan.cometDeltaV_ms, 1, 1000)],
     ['cE', (v) => sim.plan.cometNukeEff = logMap(v, 0.0005, 0.2), () => logInv(sim.plan.cometNukeEff, 0.0005, 0.2)],
@@ -236,6 +256,8 @@
   ];
   for (const [id, set] of sliders) $(id).oninput = (e) => { set(+e.target.value); syncPanels(); };
   $('nTarget').onchange = (e) => { sim.plan.nukeTarget = e.target.value; syncPanels(); };
+  $('bKind').onchange = (e) => { setBody(sim.plan, e.target.value); syncPanels(); };
+  $('bSrc').onchange = (e) => { setBody(sim.plan, sim.plan.bodyKind, e.target.value); syncPanels(); };
 
   document.querySelectorAll('.sec>h3').forEach((h) => {
     h.onclick = () => h.parentElement.classList.toggle('closed');
@@ -456,22 +478,27 @@
       `for millennia. Marinova et al. (2005) found ~0.1 Pa of an optimised mixture gives about ` +
       `10 K on Mars — here that would be ${mass(PL.massFor(w, 0.1))} of gas.`;
 
-    const dia = Math.cbrt(p.cometMass_kg / 500 / (Math.PI / 6));
+    const kind = MS.BODIES[p.bodyKind] || MS.BODIES.comet, src = MS.SOURCES[p.bodySource] || MS.SOURCES.crosser;
     const bill = MS.cometBill(p);
-    $('cDV').textContent = fmt(dia / 1000) + ' km';
+    $('bKind').value = p.bodyKind; $('bSrc').value = p.bodySource;
+    $('cDV').textContent = fmt(p.bodyDia_m / 1000) + ' km';
     $('cNV').textContent = fmt(p.cometPerYear) + '/yr';
     $('cVV').textContent = fmt(p.cometDeltaV_ms, 0) + ' m/s';
     $('cEV').textContent = fmt(p.cometNukeEff * 100, 2) + '%';
+    const vol = p.cometMass_kg * p.cometVolatileFrac;
     $('comNote').innerHTML =
-      `Each body carries ${mass(p.cometMass_kg)} of volatiles — ${press(p.cometMass_kg * w.g / w.area)} of gas if it ` +
-      `all stayed — and lands with <b>${fmt(bill.impactMt)} Mt</b> of kinetic energy.<br>` +
-      `<b>The nuclear bill:</b> nudging one onto course takes ${fmt(bill.Mt)} Mt = <b>${words(bill.devices)}</b> ` +
-      `devices of 25 Mt (${fmt(bill.pu_t)} t of plutonium, ${fmt(bill.mass_t)} t to launch). At ` +
-      `${fmt(p.cometPerYear)} a year that is <b>${words(bill.devices * p.cometPerYear)} devices a year</b> — ` +
-      `against the ~20,000 primaries a year the world's civil reactors already make the plutonium for.<br>` +
-      `Each one arrives with <b>${fmt(bill.gain, 0)}×</b> the energy it took to move it. This is the one job ` +
-      `nuclear weapons are good at here: as a lever, not as a blowtorch. The bursts happen in deep space, so ` +
-      `none of their fallout reaches ${w.name}.`;
+      `${kind.note}<br>` +
+      `One ${fmt(p.bodyDia_m / 1000)} km body weighs ${mass(p.cometMass_kg)}; ${(p.cometVolatileFrac * 100).toFixed(1)}% of that is ` +
+      `volatile, so it delivers ${mass(vol)} = <b>${press(vol * w.g / w.area)}</b> of air, and lands at ` +
+      `${fmt(p.cometSpeed_kms, 0)} km/s with <b>${fmt(bill.impactMt)} Mt</b> of energy.<br>` +
+      `<b>The nuclear bill</b> (${src.note}): ${fmt(bill.Mt)} Mt = <b>${words(bill.devices)}</b> devices of 25 Mt per body ` +
+      `(${fmt(bill.pu_t)} t of plutonium, ${fmt(bill.mass_t)} t to launch). At ${fmt(p.cometPerYear)} a year: ` +
+      `<b>${words(bill.devices * p.cometPerYear)} devices and ${fmt(bill.pu_t * p.cometPerYear)} t of plutonium a year</b> — ` +
+      `the world's civil reactors make about 70 t a year.<br>` +
+      `Each body arrives with <b>${fmt(bill.gain, 0)}×</b> the energy that moved it: a lever, not a blowtorch. ` +
+      `The bursts are in deep space, so none of their fallout reaches ${w.name}. ` +
+      `To find ${words(bill.devices * p.cometPerYear)} devices a year in the ground you would also have to find the ` +
+      `bodies: ~20,000 Mars-crossers are known, and the belt holds maybe 10,000–20,000 rocks bigger than 10 km.`;
 
     $('dustV').textContent = (p.dust >= 0 ? '−' : '+') + fmt(Math.abs(p.dust) * 100, 0) + '% albedo';
     $('bRV').textContent = mass(p.bakeRate_kg_yr) + '/yr';

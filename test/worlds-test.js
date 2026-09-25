@@ -167,5 +167,51 @@ for (const k of ['pluto', 'triton']) {
     `${(full.sim.cometDevices / 1000 / 1).toFixed(0)}k over a thousand years, about 600 a year. You would still need oxygen.`);
 }
 
+/* ---- 11. asteroids instead of comets ---- */
+{
+  const body = (kind, source, dia) => (p) => {
+    const b = S.BODIES[kind];
+    p.cometOn = true; p.bodyKind = kind; p.bodySource = source;
+    p.bodyDia_m = dia;
+    p.cometMass_kg = (Math.PI / 6) * Math.pow(dia, 3) * b.rho;
+    p.cometVolatileFrac = b.vol; p.cometSpeed_kms = b.v;
+    p.cometDeltaV_ms = S.SOURCES[source].dv;
+  };
+  const w = PL.WORLDS.mars;
+  const perMbar = (kind, source) => {
+    const b = S.BODIES[kind], dv = S.SOURCES[source].dv;
+    return 0.5 * dv * dv / 0.01 * (w.kg_per_mbar / b.vol) / PL.CONST.MT_J;
+  };
+  check('a C-type asteroid delivers air, a stony one does not',
+    perMbar('carbonaceous', 'crosser') / perMbar('comet', 'crosser') > 7 &&
+    perMbar('stony', 'crosser') / perMbar('carbonaceous', 'crosser') > 15,
+    `per mbar of air: comet ${perMbar('comet', 'crosser').toExponential(2)} Mt, ` +
+    `carbonaceous ${perMbar('carbonaceous', 'crosser').toExponential(2)} Mt, ` +
+    `stony ${perMbar('stony', 'crosser').toExponential(2)} Mt — 10% volatiles against 80%, and four times the mass to push`);
+  check('dropping a rock straight out of the main belt is hopeless',
+    perMbar('carbonaceous', 'direct') / perMbar('carbonaceous', 'crosser') > 1000,
+    `2.4 km/s instead of 30 m/s costs ${(perMbar('carbonaceous', 'direct') / perMbar('carbonaceous', 'crosser')).toExponential(1)}× as much — ` +
+    `use bodies that already cross Mars, or nudge them into the 3:1 resonance and wait`);
+
+  const rocks = run('mars', (p) => {
+    body('carbonaceous', 'crosser', 1e4)(p);
+    p.cometPerYear = 50; p.cometDeltaV_ms = 10;
+    p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11;
+  }, 1000);
+  const perYr = rocks.sim.cometDevices / 1000;
+  check('50,000 carbonaceous Mars-crossers over a millennium: an atmosphere you can walk in',
+    rocks.s.pPa >= PL.LIMITS.pressureSuitFree_Pa && rocks.s.T > 280 && perYr < 20000,
+    `${fp(rocks.s.pPa)}, ${(rocks.s.T - 273.15).toFixed(1)} °C, ${(rocks.s.warmFrac * 100).toFixed(0)}% of the surface can hold water; ` +
+    `${Math.round(perYr).toLocaleString('en')} devices a year at a 10 m/s nudge (${(perYr * 4 / 1000).toFixed(1)} t of plutonium — the world makes ~70)`);
+
+  const dry = run('mars', (p) => {
+    body('stony', 'crosser', 1e4)(p);
+    p.cometPerYear = 50; p.cometDeltaV_ms = 10; p.mirrorOn = true; p.mirrorFrac = 0.25;
+  }, 500);
+  check('the same programme with dry stony rocks gives heat and no air',
+    dry.s.pPa < 10000 && dry.s.T < 260,
+    `${fp(dry.s.pPa)}, ${(dry.s.T - 273.15).toFixed(1)} °C — 25,000 impacts, and most Mars-crossers are exactly this kind of rock`);
+}
+
 console.log(`\n${pass}/${total} world checks passed`);
 process.exit(pass === total ? 0 : 1);

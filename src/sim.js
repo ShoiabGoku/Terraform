@@ -48,6 +48,23 @@
   }
   S.energyPerKg = energyPerKg;
 
+  /* Bodies you could drop on a planet.  Densities and volatile fractions
+     are the measured ranges for each class: comets are dirty ice, C-type
+     (carbonaceous) asteroids carry ~10% water bound in clays plus carbon,
+     S-type (stony) ones are essentially dry.  Impact speeds are the mean
+     for that population arriving at Mars. */
+  S.BODIES = {
+    comet:        { name: 'comet (dirty ice)',            rho: 500,  vol: 0.80, v: 25, note: 'Oort cloud or a Jupiter-family comet: mostly water ice, but they come from the outer system and only pass by on their own schedule.' },
+    carbonaceous: { name: 'carbonaceous asteroid (C-type)', rho: 2000, vol: 0.10, v: 10, note: 'The common outer-belt rock: ~10% water bound into clays, plus carbon and organics. Three quarters of the belt by number.' },
+    stony:        { name: 'stony asteroid (S-type)',        rho: 2700, vol: 0.005, v: 10, note: 'Inner-belt and most Mars-crossers: dry. It delivers heat and rock, almost no air.' }
+  };
+  /* What it costs to put one on a collision course, in delta-v. */
+  S.SOURCES = {
+    crosser:  { name: 'a Mars-crossing asteroid (~20,000 known)', dv: 30,   note: 'Already crosses Mars\' orbit: a nudge years ahead moves the miss into a hit.' },
+    resonance:{ name: 'main belt, nudged into a resonance',       dv: 5,    note: 'Let the 3:1 Kirkwood gap do the work — almost free, but delivery takes 10⁵–10⁶ years.' },
+    direct:   { name: 'main belt, pushed straight down',          dv: 2400, note: 'Drop it from 2.5 AU to Mars in one go. The honest number for "just move an asteroid".' }
+  };
+
   function defaultPlan() {
     return {
       nukeOn: false, nukeYieldMt: 1, nukeCount: 10000, nukeYears: 10,
@@ -57,6 +74,7 @@
       cometOn: false, cometMass_kg: 2.6e14, cometPerYear: 0,
       cometSpeed_kms: 10, cometVolatileFrac: 0.8,
       cometDeltaV_ms: 10, cometNukeEff: 0.01,   /* the nuclear nudge that retargets one */
+      bodyKind: 'comet', bodySource: 'crosser', bodyDia_m: 1e4,
       dust: 0,
       bakeOn: false, bakeRate_kg_yr: 0
     };
@@ -195,9 +213,12 @@
       this.energyUsed_J += bill.E * n;
       const hit = st.cap_co2 > 0 ? 'cap' : st.cap_n2 > 0 ? 'capn2' : st.ice_h2o > 0 ? 'ice' : null;
       if (hit) this.release(E * 0.3, hit, true);
-      st.atm_h2o += mass * p.cometVolatileFrac;
-      st.atm_co2 += mass * (1 - p.cometVolatileFrac) * 0.5;
-      st.atm_n2 += mass * (1 - p.cometVolatileFrac) * 0.1;
+      /* only its volatiles become air — water, some CO₂, a trace of
+         nitrogen.  The rock stays rock. */
+      const vol = mass * p.cometVolatileFrac;
+      st.atm_h2o += vol * 0.80;
+      st.atm_co2 += vol * 0.18;
+      st.atm_n2 += vol * 0.02;
     }
 
     let s = this.snapshot();
