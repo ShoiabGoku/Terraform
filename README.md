@@ -94,6 +94,55 @@ million arsenals, for no weapons and no fallout.
 
 ---
 
+## What humanity could actually build — and the one way it works
+
+The sandbox's "million arsenals" is not a thing anyone can build. Real limits: each warhead's
+primary needs ~4 kg of plutonium, each megaton of fusion yield ~16 t of lithium deuteride, and
+the best yield-to-weight ever achieved was the B41 (25 Mt in 4,850 kg = 5.2 kt/kg). The world's
+civil reactors make ~70–80 t of plutonium a year — enough to arm ~20,000 primaries a year, if
+every gram were reprocessed for weapons.
+
+| Programme | Devices | Total yield | Plutonium | Mass to launch | Dropped on the caps |
+|---|---|---|---|---|---|
+| every weapon on Earth today | 12,200 | 1,500 Mt | 49 t | 290 t | **no change at all** |
+| 1960s peak output, for a decade | 30,000 | 3×10⁴ Mt | 120 t | 5,800 t | **no change** |
+| a century of *all* the world's plutonium | 400,000 | 1×10⁷ Mt | 1,600 t | 1.9×10⁶ t | **no change** |
+| a millennium of it | 2×10⁷ | 5×10⁸ Mt | 8×10⁴ t | 1×10⁸ t | +0.009 mbar |
+
+The cap does not care: subliming the south cap needs 6.8 million Mt *coupled into the ice*, which
+at a realistic 5% coupling is 1.4×10⁸ Mt — and whatever you release snows back out while any ice
+remains.
+
+**But there is a job nuclear weapons are extraordinarily good at here.** Use them as a lever, not
+a blowtorch: a standoff burst nudges a comet onto a collision course, and the comet's own orbital
+energy does the work.
+
+- A 10 km comet weighs 2.6×10¹¹ t. Nudging it by 10 m/s, with 1% of the yield coupled into
+  momentum, costs **311 Mt — twelve 25 Mt devices, 50 kg of plutonium, 60 t to launch.**
+- It arrives with **3.1×10⁶ Mt** of kinetic energy: **10,000× the energy that moved it**, plus
+  0.067 mbar-equivalent of new volatiles that the planet did not have.
+- The same 311 Mt spent heating the polar cap directly releases 3×10⁻⁵ mbar of CO₂ — which snows
+  back out.
+
+| Comet programme (with mirrors +25% and PFC factories) | Devices a year | Plutonium a year | Result |
+|---|---|---|---|
+| 5 comets/yr for 300 years | 62 | 0.25 t | 63 mbar, **−4 °C**, standing water over 44% |
+| 20 comets/yr for 500 years | 249 | 1.0 t | 132 mbar, **+3 °C**, water over 56% |
+| 50 comets/yr for 1000 years | 621 | 2.5 t | **453 mbar, +15 °C, 87% — no pressure suit needed** |
+
+Every one of those device counts is *below* what the world's reactors already make the plutonium
+for. The limits that bite are the comets themselves (how many can be found and retargeted), the
+mirror (2,300 km across), the perfluorocarbon plants (100 Gt a year, ~160 GW of power), and a
+thousand years of not changing your mind. You would still have no oxygen to breathe.
+
+The sandbox now prices this for you: the comet panel shows the nuclear bill per comet, per year,
+in devices, plutonium and launch mass, and the energy gain. Those bursts happen in deep space, so
+none of their fallout reaches the planet. Ready-made scenarios: **"A century of everything we
+could build, at the poles"**, **"Bombs as comet-movers: 5 a year for 300 years"**, and **"The full
+programme: 50 comets a year for a millennium"**.
+
+---
+
 ## The other worlds
 
 | World | Experiment | Result |

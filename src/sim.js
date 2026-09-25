@@ -56,6 +56,7 @@
       pfcOn: false, pfcRate_kg_yr: 0,
       cometOn: false, cometMass_kg: 2.6e14, cometPerYear: 0,
       cometSpeed_kms: 10, cometVolatileFrac: 0.8,
+      cometDeltaV_ms: 10, cometNukeEff: 0.01,   /* the nuclear nudge that retargets one */
       dust: 0,
       bakeOn: false, bakeRate_kg_yr: 0
     };
@@ -86,6 +87,8 @@
     this.nukesFired = 0;
     this.fissionMt = 0;
     this.cometsUsed = 0;
+    this.cometNukeMt = 0;
+    this.cometDevices = 0;
     this.pfcMade_kg = 0;
     this.escaped_kg = 0;
     this.runaway = false;
@@ -185,6 +188,11 @@
       const v = p.cometSpeed_kms * 1000;
       const E = 0.5 * mass * v * v;
       this.energyUsed_J += E;
+      /* the nuclear devices spent moving them (in deep space: no fallout here) */
+      const bill = S.cometBill(p);
+      this.cometNukeMt += bill.Mt * n;
+      this.cometDevices += bill.devices * n;
+      this.energyUsed_J += bill.E * n;
       const hit = st.cap_co2 > 0 ? 'cap' : st.cap_n2 > 0 ? 'capn2' : st.ice_h2o > 0 ? 'ice' : null;
       if (hit) this.release(E * 0.3, hit, true);
       st.atm_h2o += mass * p.cometVolatileFrac;
@@ -560,6 +568,26 @@
       need_kg, avail, availAll, E, Mt, arsenals: Mt / 1500,
       possible: need_kg <= availAll, possibleEasy: need_kg <= avail,
       comets: need_kg / (plan.cometMass_kg * plan.cometVolatileFrac)
+    };
+  };
+
+  /* What it costs to put one comet on a collision course, and what it
+     brings.  A standoff burst ablates the surface and pushes: only a per
+     cent or so of the yield ends up as momentum, so the bill is
+        E = 1/2 m dv^2 / efficiency.
+     The comet then arrives with its own orbital energy, thousands of times
+     more than the nudge, plus the volatiles — which is the whole point.
+     These bursts happen in deep space, so their fallout never reaches the
+     planet. */
+  S.cometBill = function (plan) {
+    const E = 0.5 * plan.cometMass_kg * Math.pow(plan.cometDeltaV_ms || 0, 2) / Math.max(plan.cometNukeEff || 0.01, 1e-4);
+    const Mt = E / MT_J;
+    const impactMt = 0.5 * plan.cometMass_kg * Math.pow(plan.cometSpeed_kms * 1000, 2) / MT_J;
+    return {
+      E, Mt, impactMt, gain: Mt > 0 ? impactMt / Mt : Infinity,
+      arsenals: Mt / 1500, devices: Mt / 25,          /* 25 Mt each: the B41, the largest ever built */
+      pu_t: Mt / 25 * 4 / 1000,                       /* ~4 kg of plutonium in each primary */
+      mass_t: Mt / 25 * 4.8                           /* 4.8 t each at the best yield-to-weight ever achieved */
     };
   };
 

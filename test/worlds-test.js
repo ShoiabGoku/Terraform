@@ -128,5 +128,44 @@ for (const k of ['pluto', 'triton']) {
     `Earth sea cover ${(e.seaFrac * 100).toFixed(0)}% (real ~71%); Venus cloud ${v.cloud.toFixed(2)}`);
 }
 
+/* ---- 10. what humans could actually build ---- */
+{
+  /* every device the world's plutonium could arm this century, on the caps */
+  const century = run('mars', (p) => {
+    p.nukeOn = true; p.nukeYieldMt = 25; p.nukeCount = 4000; p.nukeYears = 100; p.nukeCoupling = 0.05; p.nukeTarget = 'cap';
+  }, 2000);
+  const p0 = run('mars', () => { }, 2000).s.pPa;      /* the same world, left alone */
+  check('a century of everything we could build, dropped on the caps, changes nothing',
+    Math.abs(century.s.pPa - p0) / p0 < 1e-4,
+    `400,000 devices of 25 Mt = 10 million Mt = 6,700 world arsenals → ${fp(century.s.pPa)}, ` +
+    `${(century.s.T - 273.15).toFixed(1)} °C — the cap snows it straight back out`);
+
+  const plan = Object.assign(S.defaultPlan(), { cometOn: true, cometPerYear: 5 });
+  const bill = S.cometBill(plan);
+  check('moving a comet with bombs is cheap, and it repays the energy ten thousand times over',
+    Math.abs(bill.Mt - 311) < 5 && bill.gain > 9000 && bill.devices * 5 < 100 && bill.pu_t * 5 < 1,
+    `a 10 m/s nudge at 1% coupling: ${bill.Mt.toFixed(0)} Mt = ${bill.devices.toFixed(0)} devices of 25 Mt per comet; ` +
+    `5 a year = ${(bill.devices * 5).toFixed(0)} devices and ${(bill.pu_t * 5).toFixed(2)} t of plutonium a year ` +
+    `(the world's reactors make ~70 t a year); each arrives with ${bill.gain.toExponential(1)}× the energy that moved it`);
+
+  const work = run('mars', (p) => {
+    p.cometOn = true; p.cometPerYear = 5; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11;
+  }, 300);
+  check('bombs as comet-movers, with mirrors and greenhouse factories: liquid water on Mars in 300 years',
+    work.s.pPa > 5000 && work.s.T > 265 && work.s.warmFrac > 0.3 && work.sim.st.ocean_h2o > 1e18,
+    `${fp(work.s.pPa)}, ${(work.s.T - 273.15).toFixed(1)} °C, ${(work.s.warmFrac * 100).toFixed(0)}% of the surface ` +
+    `can hold liquid water, ${(work.sim.st.ocean_h2o / 1e18).toFixed(1)}×10¹⁸ kg of it standing; ` +
+    `${work.sim.cometDevices.toFixed(0)} devices spent over the whole programme`);
+
+  const full = run('mars', (p) => {
+    p.cometOn = true; p.cometPerYear = 50; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11;
+  }, 1000);
+  check('the full millennium programme reaches an atmosphere you could walk in without a pressure suit',
+    full.s.pPa >= PL.LIMITS.pressureSuitFree_Pa && full.s.T > 283 && full.s.warmFrac > 0.8,
+    `${fp(full.s.pPa)}, ${(full.s.T - 273.15).toFixed(1)} °C, ${(full.s.warmFrac * 100).toFixed(0)}% of the surface; ` +
+    `50,000 comets moved by ${(full.sim.cometDevices / 1000).toFixed(0)},000 devices — ` +
+    `${(full.sim.cometDevices / 1000 / 1).toFixed(0)}k over a thousand years, about 600 a year. You would still need oxygen.`);
+}
+
 console.log(`\n${pass}/${total} world checks passed`);
 process.exit(pass === total ? 0 : 1);

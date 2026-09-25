@@ -72,6 +72,12 @@
       { key: 'mirrorTip', name: 'Mirrors: tip the polar cap', apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 0.12; }, speed: 10 },
       { key: 'pfc', name: 'Perfluorocarbon factories', apply: (p) => { p.pfcOn = true; p.pfcRate_kg_yr = 2e11; }, speed: 20 },
       { key: 'comets', name: 'Redirect comets for 500 years', apply: (p) => { p.cometOn = true; p.cometMass_kg = 2.6e14; p.cometPerYear = 2; }, speed: 10 },
+      { key: 'realCentury', name: 'A century of everything we could build, at the poles', speed: 10,
+        apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 25; p.nukeCount = 4000; p.nukeYears = 100; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; } },
+      { key: 'cometMovers', name: 'Bombs as comet-movers: 5 a year for 300 years', speed: 10,
+        apply: (p) => { p.cometOn = true; p.cometPerYear = 5; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+      { key: 'cometMillennium', name: 'The full programme: 50 comets a year for a millennium', speed: 20,
+        apply: (p) => { p.cometOn = true; p.cometPerYear = 50; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
       { key: 'everything', name: 'Everything at once, for a millennium', speed: 20, apply: (p) => {
         p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 5e11;
         p.cometOn = true; p.cometPerYear = 2; p.bakeOn = true; p.bakeRate_kg_yr = 2e14; p.dust = 0.05;
@@ -223,6 +229,8 @@
     ['pR', (v) => sim.plan.pfcRate_kg_yr = v === 0 ? 0 : logMap(v, 1e6, 1e14), () => logInv(Math.max(sim.plan.pfcRate_kg_yr, 1e6), 1e6, 1e14)],
     ['cD', (v) => sim.plan.cometMass_kg = (Math.PI / 6) * Math.pow(logMap(v, 100, 5e4), 3) * 500, () => logInv(Math.cbrt(sim.plan.cometMass_kg / 500 / (Math.PI / 6)), 100, 5e4)],
     ['cN', (v) => sim.plan.cometPerYear = v === 0 ? 0 : logMap(v, 0.001, 100), () => logInv(Math.max(sim.plan.cometPerYear, 0.001), 0.001, 100)],
+    ['cV', (v) => sim.plan.cometDeltaV_ms = logMap(v, 1, 1000), () => logInv(sim.plan.cometDeltaV_ms, 1, 1000)],
+    ['cE', (v) => sim.plan.cometNukeEff = logMap(v, 0.0005, 0.2), () => logInv(sim.plan.cometNukeEff, 0.0005, 0.2)],
     ['bR', (v) => sim.plan.bakeRate_kg_yr = v === 0 ? 0 : logMap(v, 1e9, 1e16), () => logInv(Math.max(sim.plan.bakeRate_kg_yr, 1e9), 1e9, 1e16)],
     ['dust', (v) => sim.plan.dust = -v / 100, () => -sim.plan.dust * 100]
   ];
@@ -449,13 +457,21 @@
       `10 K on Mars — here that would be ${mass(PL.massFor(w, 0.1))} of gas.`;
 
     const dia = Math.cbrt(p.cometMass_kg / 500 / (Math.PI / 6));
-    const Ec = 0.5 * p.cometMass_kg * Math.pow(p.cometSpeed_kms * 1000, 2);
+    const bill = MS.cometBill(p);
     $('cDV').textContent = fmt(dia / 1000) + ' km';
     $('cNV').textContent = fmt(p.cometPerYear) + '/yr';
+    $('cVV').textContent = fmt(p.cometDeltaV_ms, 0) + ' m/s';
+    $('cEV').textContent = fmt(p.cometNukeEff * 100, 2) + '%';
     $('comNote').innerHTML =
-      `Each body carries ${mass(p.cometMass_kg)} of volatiles and lands with ` +
-      `<b>${fmt(Ec / MT_J)} Mt</b> of kinetic energy — ${fmt(Ec / (1500 * MT_J))}× ` +
-      `the world arsenal, per impact. Comets add matter; bombs only move it around.`;
+      `Each body carries ${mass(p.cometMass_kg)} of volatiles — ${press(p.cometMass_kg * w.g / w.area)} of gas if it ` +
+      `all stayed — and lands with <b>${fmt(bill.impactMt)} Mt</b> of kinetic energy.<br>` +
+      `<b>The nuclear bill:</b> nudging one onto course takes ${fmt(bill.Mt)} Mt = <b>${words(bill.devices)}</b> ` +
+      `devices of 25 Mt (${fmt(bill.pu_t)} t of plutonium, ${fmt(bill.mass_t)} t to launch). At ` +
+      `${fmt(p.cometPerYear)} a year that is <b>${words(bill.devices * p.cometPerYear)} devices a year</b> — ` +
+      `against the ~20,000 primaries a year the world's civil reactors already make the plutonium for.<br>` +
+      `Each one arrives with <b>${fmt(bill.gain, 0)}×</b> the energy it took to move it. This is the one job ` +
+      `nuclear weapons are good at here: as a lever, not as a blowtorch. The bursts happen in deep space, so ` +
+      `none of their fallout reaches ${w.name}.`;
 
     $('dustV').textContent = (p.dust >= 0 ? '−' : '+') + fmt(Math.abs(p.dust) * 100, 0) + '% albedo';
     $('bRV').textContent = mass(p.bakeRate_kg_yr) + '/yr';
@@ -466,6 +482,7 @@
   /* ------------------------------ readouts ----------------------------- */
   function headline(w, s, st) {
     const L = PL.LIMITS, p = s.pPa, T = s.T;
+    const warm = s.liquidPossible ? s.warmFrac : 0;
     const o2 = s.p && s.p.o2 ? s.p.o2 : 0;
     if (s.runaway) return ['Runaway greenhouse — the oceans are boiling away.', 'var(--red)'];
     if (T > 373 && p > 5e5) return ['A crushing furnace.', 'var(--red)'];
@@ -475,6 +492,8 @@
     if (T >= 273.15 && p >= L.triplePoint_Pa) return ['Above freezing, liquid water possible — but far too thin to breathe.', 'var(--amber)'];
     if (T >= 273.15) return ['Above freezing, but no real air.', 'var(--amber)'];
     if (p > 5e5) return ['Crushing, and frozen.', 'var(--red)'];
+    if (p >= L.triplePoint_Pa && warm > 0.15 && T > 258)
+      return ['Liquid water on the surface — bring a suit and oxygen.', 'var(--amber)'];
     if (p >= L.armstrong_Pa) return ['Real air — but frozen solid.', 'var(--amber)'];
     if (p >= 1) return ['No. A thin, frozen atmosphere.', 'var(--red)'];
     return ['No. Airless and frozen.', 'var(--red)'];
@@ -531,7 +550,7 @@
       ['temperature', fmt(s.C, 1), '°C, global mean'],
       ['vs Earth', fmt(100 * s.pPa / PL.LIMITS.earthSeaLevel_Pa, 2) + '%', 'of sea level'],
       ['liquid water', s.warmFrac > 0 && s.liquidPossible ? fmt(s.warmFrac * 100, 1) + '%' : 'none', 'of the surface could hold it'],
-      ['devices fired', words(sim.nukesFired), 'nuclear'],
+      ['devices fired', words(sim.nukesFired + (sim.cometDevices || 0)), sim.cometDevices > 1 ? 'incl. ' + words(sim.cometDevices) + ' moving comets' : 'nuclear'],
       ['energy spent', fmt(sim.energyUsed_J / MT_J), 'megatons'],
       ['= world arsenals', fmt(sim.energyUsed_J / MT_J / 1500), '× 1500 Mt']
     ].map(([k, n, u]) => `<div><div class="k">${k}</div><div class="n">${n}</div><div class="u">${u}</div></div>`).join('');
