@@ -1049,6 +1049,46 @@ select:focus{outline:none;border-color:var(--rust)}
     direct:   { name: 'main belt, pushed straight down',          dv: 2400, note: 'Drop it from 2.5 AU to Mars in one go. The honest number for "just move an asteroid".' }
   };
 
+  /* Is there anything out there to throw?  Order-of-magnitude survey
+     numbers.  n1km is how many bodies bigger than 1 km the reservoir holds,
+     and the population falls off as D^-slope, so N(>D) = n1km * D_km^-slope.
+     Comets are different: they are not sitting still, they fall in, so what
+     limits you is the arrival rate — arrivals1km per year bigger than 1 km,
+     with the same size law.
+       main belt      ~1.9 million bodies > 1 km, ~200 > 100 km, 2.4e21 kg in
+                      total, 39% of it in Ceres alone
+       Mars-crossers  ~28,000 known, nearly all 1-5 km, mostly dry S-types
+       Jupiter-family ~500 active comets > 1 km, coming back every ~7 years
+       long-period    a few > 1 km fall in each year; a 10 km one is rarer
+                      than once a decade                                   */
+  S.RESERVOIRS = {
+    belt:     { name: 'the main belt', n1km: 1.9e6, slope: 2.2, mass: 2.39e21, arrivals1km: 0, reach: 'each one needs its own mission out to 2-3 AU' },
+    crossers: { name: 'known Mars-crossers', n1km: 2.8e4, slope: 2.6, mass: 2e19, arrivals1km: 0, reach: 'already crossing Mars; the cheapest to move, but mostly dry rock' },
+    jfc:      { name: 'Jupiter-family comets', n1km: 500, slope: 2.0, mass: 5e17, arrivals1km: 70, reach: 'they come back every ~7 years, so you can plan for them — but they are small' },
+    lpc:      { name: 'long-period comets', n1km: 1e11, slope: 2.0, mass: 1e26, arrivals1km: 3, reach: 'the Oort cloud is inexhaustible and unreachable: you can only work with the few that fall in' }
+  };
+  S.reservoirFor = function (plan) {
+    if (plan.bodyKind === 'comet') return plan.bodySource === 'direct' ? 'lpc' : 'jfc';
+    return plan.bodySource === 'crosser' ? 'crossers' : 'belt';
+  };
+  /* How many bodies of this size exist or arrive, against the rate asked for. */
+  S.supply = function (plan) {
+    const key = S.reservoirFor(plan), r = S.RESERVOIRS[key];
+    const dkm = Math.max((plan.bodyDia_m || 1e4) / 1000, 0.01);
+    const count = r.n1km * Math.pow(dkm, -r.slope);
+    const arrivals = r.arrivals1km * Math.pow(dkm, -r.slope);
+    const rate = plan.cometPerYear || 0;
+    const massEach = plan.cometMass_kg;
+    return {
+      key, name: r.name, reach: r.reach, count, arrivals, rate,
+      /* comets have to come to you; rocks sit still until you fetch them */
+      arrivalLimited: r.arrivals1km > 0,
+      shortfall: arrivals > 0 ? rate / arrivals : Infinity,
+      yearsToExhaust: rate > 0 ? count / rate : Infinity,
+      massYears: rate > 0 && massEach > 0 ? r.mass / (massEach * rate) : Infinity
+    };
+  };
+
   function defaultPlan() {
     return {
       nukeOn: false, nukeYieldMt: 1, nukeCount: 10000, nukeYears: 10,
@@ -3383,6 +3423,9 @@ void main() {
       { key: 'rocks300', name: 'Asteroids: 20 Mars-crossers a year for 300 years', speed: 10,
         apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 20; p.cometDeltaV_ms = 10;
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+      { key: 'bigRocks', name: 'One 100 km asteroid every 20 years, for a millennium', speed: 20,
+        apply: (p) => { setBody(p, 'carbonaceous', 'resonance', 1e5); p.cometOn = true; p.cometPerYear = 0.05; p.cometDeltaV_ms = 10;
+          p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
       { key: 'rocksMillennium', name: 'Asteroids: 50 a year for a millennium', speed: 20,
         apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 50; p.cometDeltaV_ms = 10;
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
@@ -3803,11 +3846,30 @@ void main() {
       `the world's civil reactors make about 70 t a year.<br>` +
       `Each body arrives with <b>${fmt(bill.gain, 0)}×</b> the energy that moved it: a lever, not a blowtorch. ` +
       `The bursts are in deep space, so none of their fallout reaches ${w.name}. ` +
-      `To find ${words(bill.devices * p.cometPerYear)} devices a year in the ground you would also have to find the ` +
-      `bodies: ~20,000 Mars-crossers are known, and the belt holds maybe 10,000–20,000 rocks bigger than 10 km.`;
+      supplyNote(p);
 
     $('dustV').textContent = (p.dust >= 0 ? '−' : '+') + fmt(Math.abs(p.dust) * 100, 0) + '% albedo';
     $('bRV').textContent = mass(p.bakeRate_kg_yr) + '/yr';
+  }
+
+  /* Is there anything out there this big, and does it come to you? */
+  function supplyNote(p) {
+    const s = MS.supply(p), yrs = sim.plan.cometPerYear > 0 ? s.yearsToExhaust : Infinity;
+    const count = (n) => n < 10 ? n.toFixed(1) : n < 1e4 ? Math.round(n).toLocaleString('en') : words(n);
+    let out = `<br><b>Supply — ${s.name}:</b> about <b>${count(s.count)}</b> bodies ${fmt(p.bodyDia_m / 1000)} km or bigger. `;
+    if (s.arrivalLimited) {
+      out += `They are not sitting still: only <b>${fmt(s.arrivals)} a year</b> come past. `;
+      if (s.shortfall > 1.2) out += `<span class="err">You are asking for ${fmt(s.shortfall, 0)}× what the solar system delivers</span> — ` +
+        `every extra one has to be chased into the outer system and hauled back. `;
+      else out += `Your rate fits inside that. `;
+    } else {
+      out += s.reach + '. ';
+      if (yrs < 500) out += `<span class="err">At ${fmt(p.cometPerYear)} a year you run out in ${years(yrs)}</span> — ` +
+        `move fewer, bigger ones instead: the bill is per kilogram, so one 100 km rock costs what a thousand 10 km rocks cost, ` +
+        `and does the same job. `;
+      else out += `At ${fmt(p.cometPerYear)} a year that supply lasts <b>${years(yrs)}</b>. `;
+    }
+    return out;
   }
 
   function syncAll() { $('world').value = sim.w.key; syncHeader(); syncPanels(); syncBomb(); view.setState(sim.visualState(), sim.plan); update(true); }

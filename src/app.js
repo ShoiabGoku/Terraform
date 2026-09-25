@@ -77,6 +77,9 @@
       { key: 'rocks300', name: 'Asteroids: 20 Mars-crossers a year for 300 years', speed: 10,
         apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 20; p.cometDeltaV_ms = 10;
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+      { key: 'bigRocks', name: 'One 100 km asteroid every 20 years, for a millennium', speed: 20,
+        apply: (p) => { setBody(p, 'carbonaceous', 'resonance', 1e5); p.cometOn = true; p.cometPerYear = 0.05; p.cometDeltaV_ms = 10;
+          p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
       { key: 'rocksMillennium', name: 'Asteroids: 50 a year for a millennium', speed: 20,
         apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 50; p.cometDeltaV_ms = 10;
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
@@ -497,11 +500,30 @@
       `the world's civil reactors make about 70 t a year.<br>` +
       `Each body arrives with <b>${fmt(bill.gain, 0)}×</b> the energy that moved it: a lever, not a blowtorch. ` +
       `The bursts are in deep space, so none of their fallout reaches ${w.name}. ` +
-      `To find ${words(bill.devices * p.cometPerYear)} devices a year in the ground you would also have to find the ` +
-      `bodies: ~20,000 Mars-crossers are known, and the belt holds maybe 10,000–20,000 rocks bigger than 10 km.`;
+      supplyNote(p);
 
     $('dustV').textContent = (p.dust >= 0 ? '−' : '+') + fmt(Math.abs(p.dust) * 100, 0) + '% albedo';
     $('bRV').textContent = mass(p.bakeRate_kg_yr) + '/yr';
+  }
+
+  /* Is there anything out there this big, and does it come to you? */
+  function supplyNote(p) {
+    const s = MS.supply(p), yrs = sim.plan.cometPerYear > 0 ? s.yearsToExhaust : Infinity;
+    const count = (n) => n < 10 ? n.toFixed(1) : n < 1e4 ? Math.round(n).toLocaleString('en') : words(n);
+    let out = `<br><b>Supply — ${s.name}:</b> about <b>${count(s.count)}</b> bodies ${fmt(p.bodyDia_m / 1000)} km or bigger. `;
+    if (s.arrivalLimited) {
+      out += `They are not sitting still: only <b>${fmt(s.arrivals)} a year</b> come past. `;
+      if (s.shortfall > 1.2) out += `<span class="err">You are asking for ${fmt(s.shortfall, 0)}× what the solar system delivers</span> — ` +
+        `every extra one has to be chased into the outer system and hauled back. `;
+      else out += `Your rate fits inside that. `;
+    } else {
+      out += s.reach + '. ';
+      if (yrs < 500) out += `<span class="err">At ${fmt(p.cometPerYear)} a year you run out in ${years(yrs)}</span> — ` +
+        `move fewer, bigger ones instead: the bill is per kilogram, so one 100 km rock costs what a thousand 10 km rocks cost, ` +
+        `and does the same job. `;
+      else out += `At ${fmt(p.cometPerYear)} a year that supply lasts <b>${years(yrs)}</b>. `;
+    }
+    return out;
   }
 
   function syncAll() { $('world').value = sim.w.key; syncHeader(); syncPanels(); syncBomb(); view.setState(sim.visualState(), sim.plan); update(true); }

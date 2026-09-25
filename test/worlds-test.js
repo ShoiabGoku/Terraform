@@ -213,5 +213,53 @@ for (const k of ['pluto', 'triton']) {
     `${fp(dry.s.pPa)}, ${(dry.s.T - 273.15).toFixed(1)} °C — 25,000 impacts, and most Mars-crossers are exactly this kind of rock`);
 }
 
+/* ---- 12. is there anything out there to throw? ---- */
+{
+  const w = PL.WORLDS.mars;
+  const plan = (kind, source, dia, rate) => {
+    const p = S.defaultPlan(), b = S.BODIES[kind];
+    p.cometOn = true; p.bodyKind = kind; p.bodySource = source; p.bodyDia_m = dia;
+    p.cometMass_kg = Math.PI / 6 * Math.pow(dia, 3) * b.rho;
+    p.cometVolatileFrac = b.vol; p.cometSpeed_kms = b.v; p.cometDeltaV_ms = 10; p.cometPerYear = rate;
+    return p;
+  };
+  const c10 = S.supply(plan('comet', 'crosser', 1e4, 50));
+  check('50 comets a year is far more than the solar system delivers',
+    c10.arrivalLimited && c10.arrivals < 1 && c10.shortfall > 50,
+    `about ${c10.arrivals.toFixed(1)} comets of 10 km come past a year and ~${c10.count.toFixed(0)} exist at all — ` +
+    `asking for 50 is ${c10.shortfall.toFixed(0)}× the supply`);
+
+  const everyComet = 0.7 * (Math.PI / 6 * 1e12 * 500) * 0.8 * 1000 / w.kg_per_mbar;
+  check('catching every comet that falls in still would not do it',
+    everyComet < 60 && S.RESERVOIRS.jfc.mass / w.kg_per_mbar < 200,
+    `every 10 km comet for a thousand years = ${everyComet.toFixed(0)} mbar; the whole Jupiter-family population is worth ` +
+    `${(S.RESERVOIRS.jfc.mass / w.kg_per_mbar).toFixed(0)} mbar-equivalent, once`);
+
+  const beltWater = S.RESERVOIRS.belt.mass * 0.6 * 0.1 / w.kg_per_mbar;
+  check('the asteroid belt has the material a hundred times over', beltWater > 1e4,
+    `${beltWater.toExponential(1)} mbar-equivalent of water in C-type rock — the belt is not the limit, moving it is`);
+
+  const small = S.supply(plan('carbonaceous', 'resonance', 1e4, 50));
+  const big = S.supply(plan('carbonaceous', 'resonance', 1e5, 0.05));
+  check('50 ten-km rocks a year runs the belt dry; one 100 km rock every 20 years does not',
+    small.yearsToExhaust < 300 && big.count > 50 && big.yearsToExhaust > 1000,
+    `10 km: ~${small.count.toExponential(1)} exist, gone in ${small.yearsToExhaust.toFixed(0)} yr at 50/yr. ` +
+    `100 km: ~${big.count.toFixed(0)} exist, ${big.yearsToExhaust.toExponential(1)} yr at one per 20`);
+
+  /* the same mass in a few big lumps must give the same planet */
+  const go = (dia, rate) => {
+    const sim = new Sim('mars');
+    Object.assign(sim.plan, plan('carbonaceous', 'resonance', dia, rate));
+    sim.plan.mirrorOn = true; sim.plan.mirrorFrac = 0.25; sim.plan.pfcOn = true; sim.plan.pfcRate_kg_yr = 1e11;
+    for (let i = 0; i < 500; i++) sim.step(2);
+    return sim.snapshot();
+  };
+  const many = go(1e4, 50), few = go(1e5, 0.05);
+  check('a few big asteroids do the same job as thousands of small ones',
+    Math.abs(many.pPa - few.pPa) / many.pPa < 0.02 && Math.abs(many.T - few.T) < 1,
+    `50,000 bodies of 10 km → ${(many.pPa / 100).toFixed(0)} mbar, ${(many.T - 273.15).toFixed(1)} °C;  ` +
+    `50 bodies of 100 km → ${(few.pPa / 100).toFixed(0)} mbar, ${(few.T - 273.15).toFixed(1)} °C — same mass, same bombs per year`);
+}
+
 console.log(`\n${pass}/${total} world checks passed`);
 process.exit(pass === total ? 0 : 1);

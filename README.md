@@ -149,6 +149,38 @@ ahead, when tens of metres per second are enough.
 | 50 comets/yr for 1000 yr, 10 m/s | 5,631 | 23 t | **587 mbar, +18 °C, 97%** |
 | 50 S-type (dry) asteroids/yr for 500 yr | 2,700 | 11 t | 44 mbar, −36 °C — heat, no air |
 
+### Is there anything out there to throw?
+
+The bomb bill is only half the problem. The other half is supply, and it kills the comet plan:
+
+| Body | How many exist | How many come past per year |
+|---|---|---|
+| 10 km comets (Jupiter-family) | ~5 | **0.7** |
+| 2 km comets | ~125 | ~17 |
+| 10 km C-type Mars-crossers | ~70 | they sit still — you fetch them |
+| 10 km asteroids in the belt | ~12,000 | you fetch them |
+| 100 km asteroids in the belt | ~76 | you fetch them |
+
+Fifty comets a year is **71× what the solar system delivers**. Catching *every* 10 km comet for a
+thousand years would give 38 mbar; the entire Jupiter-family population is worth 129 mbar
+once, and then it is gone. Comets are an upper bound on physics, not a plan.
+
+The belt is a different story: ~37,000 mbar-equivalent of water sits in its carbonaceous rock, a
+hundred times more than the programme needs. But 50 ten-kilometre rocks a year would empty the
+supply of that size in 240 years — so move **fewer, bigger** bodies. The bill is per kilogram, so
+one 100 km asteroid costs exactly what a thousand 10 km ones cost, and gives the same planet:
+
+| Programme (C-type, 10 m/s nudge, mirrors +25%, PFC 100 Mt/yr) | Bodies used | Bombs a year | Result after 1000 yr |
+|---|---|---|---|
+| 50,000 rocks of 10 km, 50 a year | 50,000 of ~12,000 available ✗ | 2,503 | 321 mbar, +12 °C |
+| **50 rocks of 100 km, one every 20 years** | **50 of ~76 available ✓** | **2,503** | **321 mbar, +12 °C, water over 77%** |
+| 10 rocks of 100 km, one a century | 10 of ~76 ✓ | 501 | 106 mbar, +2 °C |
+
+That is the shape of a real programme: not a bombardment of thousands of comets, but a few dozen
+big carbonaceous asteroids, one every couple of decades, each nudged with the warheads of the
+intervening years. The sandbox now prints the supply next to the bill and warns when you ask for
+more bodies than exist.
+
 Every one of those device counts is *below* what the world's reactors already make the plutonium
 for. The limits that bite are the comets themselves (how many can be found and retargeted), the
 mirror (2,300 km across), the perfluorocarbon plants (100 million tonnes a year, ~160 GW of power), and a

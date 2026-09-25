@@ -65,6 +65,46 @@
     direct:   { name: 'main belt, pushed straight down',          dv: 2400, note: 'Drop it from 2.5 AU to Mars in one go. The honest number for "just move an asteroid".' }
   };
 
+  /* Is there anything out there to throw?  Order-of-magnitude survey
+     numbers.  n1km is how many bodies bigger than 1 km the reservoir holds,
+     and the population falls off as D^-slope, so N(>D) = n1km * D_km^-slope.
+     Comets are different: they are not sitting still, they fall in, so what
+     limits you is the arrival rate — arrivals1km per year bigger than 1 km,
+     with the same size law.
+       main belt      ~1.9 million bodies > 1 km, ~200 > 100 km, 2.4e21 kg in
+                      total, 39% of it in Ceres alone
+       Mars-crossers  ~28,000 known, nearly all 1-5 km, mostly dry S-types
+       Jupiter-family ~500 active comets > 1 km, coming back every ~7 years
+       long-period    a few > 1 km fall in each year; a 10 km one is rarer
+                      than once a decade                                   */
+  S.RESERVOIRS = {
+    belt:     { name: 'the main belt', n1km: 1.9e6, slope: 2.2, mass: 2.39e21, arrivals1km: 0, reach: 'each one needs its own mission out to 2-3 AU' },
+    crossers: { name: 'known Mars-crossers', n1km: 2.8e4, slope: 2.6, mass: 2e19, arrivals1km: 0, reach: 'already crossing Mars; the cheapest to move, but mostly dry rock' },
+    jfc:      { name: 'Jupiter-family comets', n1km: 500, slope: 2.0, mass: 5e17, arrivals1km: 70, reach: 'they come back every ~7 years, so you can plan for them — but they are small' },
+    lpc:      { name: 'long-period comets', n1km: 1e11, slope: 2.0, mass: 1e26, arrivals1km: 3, reach: 'the Oort cloud is inexhaustible and unreachable: you can only work with the few that fall in' }
+  };
+  S.reservoirFor = function (plan) {
+    if (plan.bodyKind === 'comet') return plan.bodySource === 'direct' ? 'lpc' : 'jfc';
+    return plan.bodySource === 'crosser' ? 'crossers' : 'belt';
+  };
+  /* How many bodies of this size exist or arrive, against the rate asked for. */
+  S.supply = function (plan) {
+    const key = S.reservoirFor(plan), r = S.RESERVOIRS[key];
+    const dkm = Math.max((plan.bodyDia_m || 1e4) / 1000, 0.01);
+    const count = r.n1km * Math.pow(dkm, -r.slope);
+    const arrivals = r.arrivals1km * Math.pow(dkm, -r.slope);
+    const rate = plan.cometPerYear || 0;
+    const massEach = plan.cometMass_kg;
+    return {
+      key, name: r.name, reach: r.reach, count, arrivals, rate,
+      /* comets have to come to you; rocks sit still until you fetch them */
+      arrivalLimited: r.arrivals1km > 0,
+      shortfall: arrivals > 0 ? rate / arrivals : Infinity,
+      yearsToExhaust: rate > 0 ? count / rate : Infinity,
+      massYears: rate > 0 && massEach > 0 ? r.mass / (massEach * rate) : Infinity
+    };
+  };
+
   function defaultPlan() {
     return {
       nukeOn: false, nukeYieldMt: 1, nukeCount: 10000, nukeYears: 10,
