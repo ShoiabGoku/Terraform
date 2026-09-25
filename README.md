@@ -124,7 +124,7 @@ energy does the work.
 - The same 311 Mt spent heating the polar cap directly releases 3×10⁻⁵ mbar of CO₂ — which snows
   back out.
 
-| Comet programme (with mirrors +25% and PFC factories) | Devices a year | Plutonium a year | Result |
+| Comet programme (mirrors +25%, PFC plants 100 Mt/yr) | Devices a year | Plutonium a year | Result |
 |---|---|---|---|
 | 5 comets/yr for 300 years | 62 | 0.25 t | 63 mbar, **−4 °C**, standing water over 44% |
 | 20 comets/yr for 500 years | 249 | 1.0 t | 132 mbar, **+3 °C**, water over 56% |
@@ -132,7 +132,7 @@ energy does the work.
 
 Every one of those device counts is *below* what the world's reactors already make the plutonium
 for. The limits that bite are the comets themselves (how many can be found and retargeted), the
-mirror (2,300 km across), the perfluorocarbon plants (100 Gt a year, ~160 GW of power), and a
+mirror (2,300 km across), the perfluorocarbon plants (100 million tonnes a year, ~160 GW of power), and a
 thousand years of not changing your mind. You would still have no oxygen to breathe.
 
 The sandbox now prices this for you: the comet panel shows the nuclear bill per comet, per year,
