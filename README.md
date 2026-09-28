@@ -223,6 +223,36 @@ every gram of CO₂ Mars owns adds to only 208 mbar against the 300 you need to 
 mask. Past that the mass has to come from somewhere else, which is where asteroids come in — and
 they buy pressure, not warmth.
 
+### Everything realistic, at once
+
+Mirrors, greenhouse factories and soot for warmth; one asteroid for mass; the warheads to move it;
+and only as many comets as actually pass by. The delivery lever runs **two streams at once**, so
+rock and ice can go together.
+
+| Setting | Value |
+|---|---|
+| Mirrors | +25% sunlight |
+| Greenhouse factories | 100 Mt/yr (158 GW) |
+| Other levers | soot on the caps, −0.05 albedo |
+| Stream 1 | 100 km carbonaceous asteroid, main belt via resonance, **one every 20 years**, 10 m/s nudge |
+| Stream 2 | 5 km comet, Jupiter-family, **1 a year** (36% of the ~2.8 that pass) |
+
+| | After 300 years | After 1,000 years |
+|---|---|---|
+| Pressure | 134 mbar | **324 mbar** |
+| Temperature | +6.5 °C | **+17.7 °C** |
+| Surface that can hold water | 62% | **90%** |
+| Pressure suit | yes | **no** |
+| Warheads | 2,504 a year — 10 t of plutonium, against the world's ~70 t | same |
+| Bodies used | 50 asteroids of the ~76 that exist; comets inside the natural rate | |
+
+Everything in that programme exists: the plutonium flow is a seventh of today's, the asteroids are
+a fraction of the ones already catalogued, and the comets are only the ones that come anyway.
+
+One lesson from running it: **the comets barely matter.** A thousand 5 km comets over a millennium
+are worth 55 mbar; a single 100 km asteroid every twenty years is worth 320. Ice is easier to move
+and far rarer; rock is dry and abundant, and abundance wins.
+
 ---
 
 ## The other worlds

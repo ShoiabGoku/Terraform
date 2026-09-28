@@ -295,5 +295,38 @@ for (const k of ['pluto', 'triton']) {
     `Past that, the mass has to come from somewhere else`);
 }
 
+/* ---- 14. everything realistic at once: rock and ice, mirrors and warheads ---- */
+{
+  const w = PL.WORLDS.mars;
+  const realistic = (p) => {
+    p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; p.dust = -0.05;
+    const b = S.BODIES.carbonaceous;
+    p.cometOn = true; p.bodyKind = 'carbonaceous'; p.bodySource = 'resonance'; p.bodyDia_m = 1e5;
+    p.cometMass_kg = Math.PI / 6 * Math.pow(1e5, 3) * b.rho; p.cometVolatileFrac = b.vol; p.cometSpeed_kms = b.v;
+    p.cometPerYear = 0.05; p.cometDeltaV_ms = 10; p.cometNukeEff = 0.01;
+    p.b2On = true; p.b2Kind = 'comet'; p.b2Source = 'jfc'; p.b2Dia_m = 5e3; p.b2PerYear = 1;
+  };
+  const two = S.streams(Object.assign(S.defaultPlan(), (() => { const p = S.defaultPlan(); realistic(p); return p; })()));
+  check('rock and ice can run side by side', two.length === 2 && two[0].kind === 'carbonaceous' && two[1].kind === 'comet',
+    `stream 1: one ${(two[0].dia / 1000).toFixed(0)} km ${two[0].kind} every ${(1 / two[0].rate).toFixed(0)} years; ` +
+    `stream 2: ${two[1].rate} comet of ${(two[1].dia / 1000).toFixed(0)} km a year`);
+
+  const r300 = run('mars', realistic, 300), r1000 = run('mars', realistic, 1000);
+  const dev = r1000.sim.cometDevices / 1000;
+  check('the whole realistic programme: warm and wet in 300 years, suit-free in a thousand',
+    r300.s.T > 275 && r300.s.warmFrac > 0.55 && r1000.s.pPa >= PL.LIMITS.pressureSuitFree_Pa && r1000.s.T > 288,
+    `300 yr: ${fp(r300.s.pPa)}, ${(r300.s.T - 273.15).toFixed(1)} °C, water over ${(r300.s.warmFrac * 100).toFixed(0)}%. ` +
+    `1000 yr: ${fp(r1000.s.pPa)}, ${(r1000.s.T - 273.15).toFixed(1)} °C, ${(r1000.s.warmFrac * 100).toFixed(0)}% — no pressure suit`);
+  check('and it stays inside what could be built and found',
+    dev < 5000 && dev * 4 / 1000 < 70 && r1000.sim.cometsUsed < 1200,
+    `${Math.round(dev).toLocaleString('en')} devices a year (${(dev * 4 / 1000).toFixed(0)} t of plutonium against the world's ~70), ` +
+    `50 asteroids of the ~76 that exist, and 1,000 comets at 36% of the rate they pass by`);
+
+  const comets = run('mars', (p) => { realistic(p); p.cometOn = false; }, 1000);
+  check('the comets are a rounding error next to one big asteroid',
+    comets.s.pPa < 0.25 * r1000.s.pPa,
+    `comets alone reach ${fp(comets.s.pPa)}; with the asteroids ${fp(r1000.s.pPa)} — a 100 km rock outweighs a thousand 5 km comets`);
+}
+
 console.log(`\n${pass}/${total} world checks passed`);
 process.exit(pass === total ? 0 : 1);

@@ -83,18 +83,40 @@
     jfc:      { name: 'Jupiter-family comets', n1km: 500, slope: 2.0, mass: 5e17, arrivals1km: 70, reach: 'they come back every ~7 years, so you can plan for them — but they are small' },
     lpc:      { name: 'long-period comets', n1km: 1e11, slope: 2.0, mass: 1e26, arrivals1km: 3, reach: 'the Oort cloud is inexhaustible and unreachable: you can only work with the few that fall in' }
   };
-  S.reservoirFor = function (plan) {
-    if (plan.bodyKind === 'comet') return plan.bodySource === 'direct' ? 'lpc' : 'jfc';
-    return plan.bodySource === 'crosser' ? 'crossers' : 'belt';
+  S.reservoirFor = function (stream) {
+    if (stream.kind === 'comet') return stream.source === 'direct' ? 'lpc' : 'jfc';
+    return stream.source === 'crosser' ? 'crossers' : 'belt';
+  };
+  /* Everything being delivered, as a list: stream 1 is the original lever,
+     stream 2 lets you run rock and ice side by side. */
+  S.streams = function (plan) {
+    const out = [];
+    const mk = (kind, source, dia, rate) => {
+      const b = S.BODIES[kind] || S.BODIES.comet;
+      return { kind, source, dia, rate, mass: (Math.PI / 6) * Math.pow(dia, 3) * b.rho,
+        vol: b.vol, v: b.v, dv: plan.cometDeltaV_ms, eff: plan.cometNukeEff };
+    };
+    if (plan.cometOn && plan.cometPerYear > 0) {
+      const s = mk(plan.bodyKind, plan.bodySource, plan.bodyDia_m, plan.cometPerYear);
+      /* stream 1 keeps its own mass and composition, which scenarios may set directly */
+      s.mass = plan.cometMass_kg; s.vol = plan.cometVolatileFrac; s.v = plan.cometSpeed_kms;
+      out.push(s);
+    }
+    if (plan.b2On && plan.b2PerYear > 0) out.push(mk(plan.b2Kind, plan.b2Source, plan.b2Dia_m, plan.b2PerYear));
+    return out;
   };
   /* How many bodies of this size exist or arrive, against the rate asked for. */
-  S.supply = function (plan) {
-    const key = S.reservoirFor(plan), r = S.RESERVOIRS[key];
-    const dkm = Math.max((plan.bodyDia_m || 1e4) / 1000, 0.01);
+  S.supply = function (streamOrPlan) {
+    const stream = streamOrPlan.dia !== undefined ? streamOrPlan
+      : { kind: streamOrPlan.bodyKind, source: streamOrPlan.bodySource, dia: streamOrPlan.bodyDia_m,
+          rate: streamOrPlan.cometPerYear, mass: streamOrPlan.cometMass_kg };
+    const plan = stream;
+    const key = S.reservoirFor(stream), r = S.RESERVOIRS[key];
+    const dkm = Math.max((stream.dia || 1e4) / 1000, 0.01);
     const count = r.n1km * Math.pow(dkm, -r.slope);
     const arrivals = r.arrivals1km * Math.pow(dkm, -r.slope);
-    const rate = plan.cometPerYear || 0;
-    const massEach = plan.cometMass_kg;
+    const rate = stream.rate || 0;
+    const massEach = stream.mass;
     return {
       key, name: r.name, reach: r.reach, count, arrivals, rate,
       /* comets have to come to you; rocks sit still until you fetch them */
@@ -115,6 +137,8 @@
       cometSpeed_kms: 10, cometVolatileFrac: 0.8,
       cometDeltaV_ms: 10, cometNukeEff: 0.01,   /* the nuclear nudge that retargets one */
       bodyKind: 'comet', bodySource: 'crosser', bodyDia_m: 1e4,
+      /* a second, independent stream: asteroids and comets at the same time */
+      b2On: false, b2Kind: 'comet', b2Source: 'jfc', b2Dia_m: 5e3, b2PerYear: 0,
       dust: 0,
       bakeOn: false, bakeRate_kg_yr: 0
     };
@@ -239,15 +263,15 @@
       const m = p.pfcRate_kg_yr * dt;
       st.atm_pfc += m; this.pfcMade_kg += m;
     }
-    if (p.cometOn && p.cometPerYear > 0) {
-      const n = p.cometPerYear * dt;
+    for (const stream of S.streams(p)) {
+      const n = stream.rate * dt;
       this.cometsUsed += n;
-      const mass = n * p.cometMass_kg;
-      const v = p.cometSpeed_kms * 1000;
+      const mass = n * stream.mass;
+      const v = stream.v * 1000;
       const E = 0.5 * mass * v * v;
       this.energyUsed_J += E;
       /* the nuclear devices spent moving them (in deep space: no fallout here) */
-      const bill = S.cometBill(p);
+      const bill = S.cometBill(stream);
       this.cometNukeMt += bill.Mt * n;
       this.cometDevices += bill.devices * n;
       this.energyUsed_J += bill.E * n;
@@ -255,7 +279,7 @@
       if (hit) this.release(E * 0.3, hit, true);
       /* only its volatiles become air — water, some CO₂, a trace of
          nitrogen.  The rock stays rock. */
-      const vol = mass * p.cometVolatileFrac;
+      const vol = mass * stream.vol;
       st.atm_h2o += vol * 0.80;
       st.atm_co2 += vol * 0.18;
       st.atm_n2 += vol * 0.02;
@@ -640,10 +664,12 @@
      more than the nudge, plus the volatiles — which is the whole point.
      These bursts happen in deep space, so their fallout never reaches the
      planet. */
-  S.cometBill = function (plan) {
-    const E = 0.5 * plan.cometMass_kg * Math.pow(plan.cometDeltaV_ms || 0, 2) / Math.max(plan.cometNukeEff || 0.01, 1e-4);
+  S.cometBill = function (streamOrPlan) {
+    const s = streamOrPlan.mass !== undefined ? streamOrPlan
+      : { mass: streamOrPlan.cometMass_kg, dv: streamOrPlan.cometDeltaV_ms, eff: streamOrPlan.cometNukeEff, v: streamOrPlan.cometSpeed_kms };
+    const E = 0.5 * s.mass * Math.pow(s.dv || 0, 2) / Math.max(s.eff || 0.01, 1e-4);
     const Mt = E / MT_J;
-    const impactMt = 0.5 * plan.cometMass_kg * Math.pow(plan.cometSpeed_kms * 1000, 2) / MT_J;
+    const impactMt = 0.5 * s.mass * Math.pow(s.v * 1000, 2) / MT_J;
     return {
       E, Mt, impactMt, gain: Mt > 0 ? impactMt / Mt : Infinity,
       arsenals: Mt / 1500, devices: Mt / 25,          /* 25 Mt each: the B41, the largest ever built */

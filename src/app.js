@@ -87,6 +87,12 @@
         apply: (p) => { p.cometOn = true; p.cometPerYear = 5; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
       { key: 'cometMillennium', name: 'The full programme: 50 comets a year for a millennium', speed: 20,
         apply: (p) => { p.cometOn = true; p.cometPerYear = 50; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+      { key: 'realistic', name: 'Everything we could really do: mirrors, factories, asteroids, the comets that pass', speed: 20,
+        apply: (p) => {
+          p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; p.dust = -0.05;
+          setBody(p, 'carbonaceous', 'resonance', 1e5); p.cometOn = true; p.cometPerYear = 0.05; p.cometDeltaV_ms = 10;
+          p.b2On = true; p.b2Kind = 'comet'; p.b2Source = 'jfc'; p.b2Dia_m = 5e3; p.b2PerYear = 1;
+        } },
       { key: 'best', name: 'The best we could do with no imports: mirrors, factories, soot', speed: 20,
         apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; p.dust = -0.05; } },
       { key: 'everything', name: 'Everything at once, for a millennium', speed: 20, apply: (p) => {
@@ -175,8 +181,10 @@
     $('scenario').innerHTML = scenarios.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
     const t = targetsFor(sim.w, sim.st);
     $('nTarget').innerHTML = t.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
-    $('bKind').innerHTML = Object.entries(MS.BODIES).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
-    $('bSrc').innerHTML = Object.entries(MS.SOURCES).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
+    const kinds = Object.entries(MS.BODIES).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
+    const srcs = Object.entries(MS.SOURCES).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
+    $('bKind').innerHTML = kinds; $('bSrc').innerHTML = srcs;
+    $('b2Kind').innerHTML = kinds; $('b2Src').innerHTML = srcs;
     if (!t.some(([k]) => k === sim.plan.nukeTarget)) sim.plan.nukeTarget = t[0][0];
   }
 
@@ -228,7 +236,8 @@
     chip('mirOn', () => sim.plan.mirrorOn, (v) => sim.plan.mirrorOn = v),
     chip('pfcOn', () => sim.plan.pfcOn, (v) => sim.plan.pfcOn = v),
     chip('comOn', () => sim.plan.cometOn, (v) => sim.plan.cometOn = v),
-    chip('bakeOn', () => sim.plan.bakeOn, (v) => sim.plan.bakeOn = v)
+    chip('bakeOn', () => sim.plan.bakeOn, (v) => sim.plan.bakeOn = v),
+    chip('b2On', () => sim.plan.b2On, (v) => sim.plan.b2On = v)
   ];
 
   /* sunlight slider: log of the multiplier, 500 = unchanged.  Down to a
@@ -255,6 +264,8 @@
     ['cD', (v) => { sim.plan.bodyDia_m = logMap(v, 100, 5e4); setBody(sim.plan, sim.plan.bodyKind); }, () => logInv(sim.plan.bodyDia_m, 100, 5e4)],
     ['cN', (v) => sim.plan.cometPerYear = v === 0 ? 0 : logMap(v, 0.001, 100), () => logInv(Math.max(sim.plan.cometPerYear, 0.001), 0.001, 100)],
     ['cV', (v) => sim.plan.cometDeltaV_ms = logMap(v, 1, 1000), () => logInv(sim.plan.cometDeltaV_ms, 1, 1000)],
+    ['b2D', (v) => sim.plan.b2Dia_m = logMap(v, 100, 5e4), () => logInv(sim.plan.b2Dia_m, 100, 5e4)],
+    ['b2N', (v) => sim.plan.b2PerYear = v === 0 ? 0 : logMap(v, 0.001, 100), () => logInv(Math.max(sim.plan.b2PerYear, 0.001), 0.001, 100)],
     ['cE', (v) => sim.plan.cometNukeEff = logMap(v, 0.0005, 0.2), () => logInv(sim.plan.cometNukeEff, 0.0005, 0.2)],
     ['bR', (v) => sim.plan.bakeRate_kg_yr = v === 0 ? 0 : logMap(v, 1e9, 1e16), () => logInv(Math.max(sim.plan.bakeRate_kg_yr, 1e9), 1e9, 1e16)],
     ['dust', (v) => sim.plan.dust = -v / 100, () => -sim.plan.dust * 100]
@@ -263,6 +274,8 @@
   $('nTarget').onchange = (e) => { sim.plan.nukeTarget = e.target.value; syncPanels(); };
   $('bKind').onchange = (e) => { setBody(sim.plan, e.target.value); syncPanels(); };
   $('bSrc').onchange = (e) => { setBody(sim.plan, sim.plan.bodyKind, e.target.value); syncPanels(); };
+  $('b2Kind').onchange = (e) => { sim.plan.b2Kind = e.target.value; syncPanels(); };
+  $('b2Src').onchange = (e) => { sim.plan.b2Source = e.target.value; syncPanels(); };
 
   document.querySelectorAll('.sec>h3').forEach((h) => {
     h.onclick = () => h.parentElement.classList.toggle('closed');
@@ -509,7 +522,28 @@
       `the world's civil reactors make about 70 t a year.<br>` +
       `Each body arrives with <b>${fmt(bill.gain, 0)}×</b> the energy that moved it: a lever, not a blowtorch. ` +
       `The bursts are in deep space, so none of their fallout reaches ${w.name}. ` +
-      supplyNote(p);
+      supplyNote(MS.streams(p)[0] || p);
+
+    $('b2Kind').value = p.b2Kind; $('b2Src').value = p.b2Source;
+    $('b2DV').textContent = fmt(p.b2Dia_m / 1000) + ' km';
+    $('b2NV').textContent = fmt(p.b2PerYear) + '/yr';
+    const all = MS.streams(p);
+    const second = (p.cometOn && p.cometPerYear > 0) ? all[1] : all[0];
+    if (p.b2On && p.b2PerYear > 0 && second) {
+      const b2 = MS.cometBill(second);
+      $('b2Note').innerHTML =
+        `One ${fmt(second.dia / 1000)} km ${MS.BODIES[second.kind].name} is ${mass(second.mass)}, worth ` +
+        `<b>${press(second.mass * second.vol * w.g / w.area)}</b> of air, moved for ${words(b2.devices)} devices.` +
+        supplyNote(second);
+    } else {
+      $('b2Note').innerHTML = `Turn this on to run two kinds of body at once — big asteroids for mass, and whatever ` +
+        `comets happen to pass close enough to nudge.`;
+    }
+    if (all.length) {
+      const dev = all.reduce((a, x) => a + MS.cometBill(x).devices * x.rate, 0);
+      $('b2Note').innerHTML += `<br><b>Both streams together:</b> ${words(dev)} devices a year ` +
+        `(${fmt(dev * 4 / 1000)} t of plutonium; the world's reactors make ~70 t a year).`;
+    }
 
     $('dustV').textContent = (p.dust <= 0 ? '−' : '+') + fmt(Math.abs(p.dust) * 100, 0) + ' albedo';
     $('bRV').textContent = mass(p.bakeRate_kg_yr) + '/yr';
@@ -526,9 +560,11 @@
 
   /* Is there anything out there this big, and does it come to you? */
   function supplyNote(p) {
-    const s = MS.supply(p), yrs = sim.plan.cometPerYear > 0 ? s.yearsToExhaust : Infinity;
+    const dia = p.dia !== undefined ? p.dia : p.bodyDia_m;
+    const rate = p.rate !== undefined ? p.rate : p.cometPerYear;
+    const s = MS.supply(p), yrs = rate > 0 ? s.yearsToExhaust : Infinity;
     const count = (n) => n < 10 ? n.toFixed(1) : n < 1e4 ? Math.round(n).toLocaleString('en') : words(n);
-    let out = `<br><b>Supply — ${s.name}:</b> about <b>${count(s.count)}</b> bodies ${fmt(p.bodyDia_m / 1000)} km or bigger. `;
+    let out = `<br><b>Supply — ${s.name}:</b> about <b>${count(s.count)}</b> bodies ${fmt(dia / 1000)} km or bigger. `;
     if (s.arrivalLimited) {
       out += `They are not sitting still: only <b>${fmt(s.arrivals)} a year</b> come past. `;
       if (s.shortfall > 1.2) out += `<span class="err">You are asking for ${fmt(s.shortfall, 0)}× what the solar system delivers</span> — ` +
@@ -536,10 +572,10 @@
       else out += `Your rate fits inside that. `;
     } else {
       out += s.reach + '. ';
-      if (yrs < 500) out += `<span class="err">At ${fmt(p.cometPerYear)} a year you run out in ${years(yrs)}</span> — ` +
+      if (yrs < 500) out += `<span class="err">At ${fmt(rate)} a year you run out in ${years(yrs)}</span> — ` +
         `move fewer, bigger ones instead: the bill is per kilogram, so one 100 km rock costs what a thousand 10 km rocks cost, ` +
         `and does the same job. `;
-      else out += `At ${fmt(p.cometPerYear)} a year that supply lasts <b>${years(yrs)}</b>. `;
+      else out += `At ${fmt(rate)} a year that supply lasts <b>${years(yrs)}</b>. `;
     }
     return out;
   }
