@@ -194,6 +194,37 @@ programme: 50 comets a year for a millennium"**.
 
 ---
 
+## So what is the best way?
+
+Every lever, priced the same way — what it gives in 300 years, and what it costs to keep running:
+
+| Lever | Alone, after 300 years | What it needs |
+|---|---|---|
+| Perfluorocarbon factories, 100 Mt/yr | 43 mbar, **−22 °C** | **158 GW** — 0.9% of humanity's 18 TW. Fluorine from Martian rock |
+| Orbital mirrors, +25% | 30 mbar, −39 °C | a 3,390 km mirror, 90 Mt of foil — then free forever |
+| Orbital mirrors, +12% (tips the cap) | 20 mbar, −48 °C | 2,348 km, 43 Mt |
+| Soot on the caps, −0.05 albedo | 8.7 mbar, −52 °C | ~170 Mt of dark dust a year, relaid each winter |
+| Carbonate kilns, 200 Mt/yr | 7.6 mbar, −57 °C | **25 TW — 1.4× everything humanity runs on**, for 0.05 mbar a year |
+| Every bomb we could build, on the caps | no change | 400,000 warheads |
+
+The answer falls out of the table: **greenhouse gases first, sunlight second, and leave the rock
+alone.** Perfluorocarbons are the only lever that buys tens of kelvin for a power station's worth
+of electricity, and mirrors are the only one that costs nothing once built.
+
+| The best programme with nothing imported | After 300 years | After 1000 years |
+|---|---|---|
+| mirrors +25%, PFC 100 Mt/yr, soot on the caps | **52 mbar, −0.7 °C, water over 49%** | 53 mbar, +2.4 °C, 53% |
+| the same, plus carbonate kilns at 200 Mt/yr (25 TW) | 67 mbar, +1.0 °C, 52% | 104 mbar, +7.4 °C, 63% |
+
+That is Mars' own ceiling: about **100 mbar and +7 °C**, with liquid water over half the planet,
+and no bombs, no comets and no asteroids in it at all. It is not a breathable world and it never
+will be — 52 mbar is still below the 62.7 mbar Armstrong limit, so a suit leak is still fatal, and
+every gram of CO₂ Mars owns adds to only 208 mbar against the 300 you need to walk around in a
+mask. Past that the mass has to come from somewhere else, which is where asteroids come in — and
+they buy pressure, not warmth.
+
+---
+
 ## The other worlds
 
 | World | Experiment | Result |

@@ -87,9 +87,11 @@
         apply: (p) => { p.cometOn = true; p.cometPerYear = 5; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
       { key: 'cometMillennium', name: 'The full programme: 50 comets a year for a millennium', speed: 20,
         apply: (p) => { p.cometOn = true; p.cometPerYear = 50; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+      { key: 'best', name: 'The best we could do with no imports: mirrors, factories, soot', speed: 20,
+        apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; p.dust = -0.05; } },
       { key: 'everything', name: 'Everything at once, for a millennium', speed: 20, apply: (p) => {
         p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 5e11;
-        p.cometOn = true; p.cometPerYear = 2; p.bakeOn = true; p.bakeRate_kg_yr = 2e14; p.dust = 0.05;
+        p.cometOn = true; p.cometPerYear = 2; p.bakeOn = true; p.bakeRate_kg_yr = 2e14; p.dust = -0.05;
       } }
     ],
     venus: [
@@ -476,10 +478,17 @@
         : `Drag right to add sunlight with orbital mirrors, left to block it with a sunshade.`;
 
     $('pRV').textContent = mass(p.pfcRate_kg_yr) + '/yr';
+    const pw = MS.power(w, p, view.vs ? view.vs.capLat : undefined);
+    const watts = (W) => W >= 1e12 ? fmt(W / 1e12) + ' TW' : W >= 1e9 ? fmt(W / 1e9) + ' GW' : fmt(W / 1e6) + ' MW';
     $('pfcNote').innerHTML =
       `Perfluorocarbons are thousands of times more effective per molecule than CO₂ and last ` +
       `for millennia. Marinova et al. (2005) found ~0.1 Pa of an optimised mixture gives about ` +
-      `10 K on Mars — here that would be ${mass(PL.massFor(w, 0.1))} of gas.`;
+      `10 K on Mars — here that would be ${mass(PL.massFor(w, 0.1))} of gas.` +
+      (p.pfcOn && p.pfcRate_kg_yr > 0
+        ? `<br><b>Power:</b> ${watts(pw.pfcW)} continuously, at ~50 MJ per kg of fluorocarbon — ` +
+          `${fmt(100 * pw.pfcW / pw.humanW, 1)}% of everything humanity runs on today (18 TW). ` +
+          `Fluorine comes out of Martian rock; nothing has to be launched.`
+        : '');
 
     const kind = MS.BODIES[p.bodyKind] || MS.BODIES.comet, src = MS.SOURCES[p.bodySource] || MS.SOURCES.crosser;
     const bill = MS.cometBill(p);
@@ -502,8 +511,17 @@
       `The bursts are in deep space, so none of their fallout reaches ${w.name}. ` +
       supplyNote(p);
 
-    $('dustV').textContent = (p.dust >= 0 ? '−' : '+') + fmt(Math.abs(p.dust) * 100, 0) + '% albedo';
+    $('dustV').textContent = (p.dust <= 0 ? '−' : '+') + fmt(Math.abs(p.dust) * 100, 0) + ' albedo';
     $('bRV').textContent = mass(p.bakeRate_kg_yr) + '/yr';
+    $('leverNote').innerHTML =
+      (p.dust < 0 ? `<b>Soot on the caps:</b> about ${mass(pw.soot_kg_yr)} a year spread over the ice — a thin layer, ` +
+        `and next winter's frost buries it, so you lay it again every year. Dark ice absorbs more sunlight and sublimes.<br>` : '') +
+      (p.dust > 0 ? `<b>Brightening</b> the surface reflects sunlight away and cools the planet.<br>` : '') +
+      (p.bakeOn && p.bakeRate_kg_yr > 0
+        ? `<b>Kilns:</b> ${watts(pw.kilnW)} continuously — ${fmt(pw.kilnW / pw.humanW, 1)}× everything humanity runs on ` +
+          `(18 TW) — to release ${fmt(p.bakeRate_kg_yr / w.kg_per_mbar, 3)} mbar a year. This is the most ` +
+          `energy-hungry lever there is, and the only one that can reach past ${fmt((w.res0.atm_co2 + w.res0.cap_co2 + w.res0.rego_co2) / w.kg_per_mbar, 0)} mbar.`
+        : '');
   }
 
   /* Is there anything out there this big, and does it come to you? */

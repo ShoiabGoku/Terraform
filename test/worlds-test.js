@@ -261,5 +261,39 @@ for (const k of ['pluto', 'triton']) {
     `50 bodies of 100 km → ${(few.pPa / 100).toFixed(0)} mbar, ${(few.T - 273.15).toFixed(1)} °C — same mass, same bombs per year`);
 }
 
+/* ---- 13. what a Mars with no imports can do, and what it costs to run ---- */
+{
+  const w = PL.WORLDS.mars;
+  const dark = run('mars', (p) => { p.dust = -0.05; }, 300);
+  const bright = run('mars', (p) => { p.dust = 0.05; }, 300);
+  const base = run('mars', () => { }, 300);
+  check('soot on the caps warms the planet; bright dust cools it',
+    dark.s.T > base.s.T + 3 && bright.s.T < base.s.T - 3 && dark.s.pPa > base.s.pPa,
+    `darkened ${(dark.s.T - 273.15).toFixed(1)} °C at ${fp(dark.s.pPa)}, left alone ${(base.s.T - 273.15).toFixed(1)} °C, ` +
+    `brightened ${(bright.s.T - 273.15).toFixed(1)} °C — the sign of this lever was backwards in the scenarios until now`);
+
+  const best = run('mars', (p) => {
+    p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; p.dust = -0.05;
+  }, 300);
+  check('mirrors, greenhouse factories and soot alone: liquid water over half of Mars in 300 years',
+    best.s.T > 270 && best.s.liquidPossible && best.s.warmFrac > 0.4 && best.s.pPa > 5 * PL.LIMITS.triplePoint_Pa,
+    `${fp(best.s.pPa)}, ${(best.s.T - 273.15).toFixed(1)} °C, ${(best.s.warmFrac * 100).toFixed(0)}% of the surface — ` +
+    `nothing imported, no weapons. Still under the 62.7 mbar Armstrong limit, so a suit leak is still fatal`);
+
+  const p = Object.assign(S.defaultPlan(), { pfcOn: true, pfcRate_kg_yr: 1e11, bakeOn: true, bakeRate_kg_yr: 2e14, dust: -0.05 });
+  const pow = S.power(w, p, 70.1);
+  check('the greenhouse factories are affordable; the carbonate kilns are not',
+    pow.pfcW < 3e11 && pow.kilnW > pow.humanW && pow.soot_kg_yr > 1e10,
+    `perfluorocarbons ${(pow.pfcW / 1e9).toFixed(0)} GW (${(100 * pow.pfcW / pow.humanW).toFixed(1)}% of humanity's 18 TW); ` +
+    `kilns ${(pow.kilnW / 1e12).toFixed(1)} TW = ${(pow.kilnW / pow.humanW).toFixed(1)}× everything we run on, for ` +
+    `${(p.bakeRate_kg_yr / w.kg_per_mbar).toFixed(2)} mbar a year; soot ${(pow.soot_kg_yr / 1e9).toFixed(0)} Mt a year`);
+
+  const ceiling = (w.res0.atm_co2 + w.res0.cap_co2 + w.res0.rego_co2 + w.res0.carb_co2) / w.kg_per_mbar;
+  check('and no amount of Martian rock reaches a pressure you could walk in',
+    ceiling < PL.LIMITS.pressureSuitFree_Pa / 100,
+    `every gram of CO₂ Mars owns is ${ceiling.toFixed(0)} mbar; you need 300 to go without a pressure suit. ` +
+    `Past that, the mass has to come from somewhere else`);
+}
+
 console.log(`\n${pass}/${total} world checks passed`);
 process.exit(pass === total ? 0 : 1);

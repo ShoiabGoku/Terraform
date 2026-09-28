@@ -660,6 +660,22 @@
     return { cs137_PBq, perArea, chernobylZones: perArea / 5.55e5 };
   };
 
+  /* What each industry has to be fed, continuously.  Perfluorocarbons cost
+     roughly 50 MJ/kg to make (electrolysing fluorite, then fluorinating
+     carbon); calcining carbonate needs the 4 MJ/kg it takes to drive CO2 out
+     of the rock at ~900 K; darkening the caps is a thin layer of soot that
+     next winter's frost buries, so it has to be laid again every year.
+     Humanity today runs on about 18 TW, all sources together.            */
+  S.PFC_J_PER_KG = 5e7;
+  S.SOOT_G_PER_M2 = 20;
+  S.power = function (w, plan, capLatDeg) {
+    const pfcW = plan.pfcOn ? plan.pfcRate_kg_yr * S.PFC_J_PER_KG / YR_S : 0;
+    const kilnW = plan.bakeOn ? plan.bakeRate_kg_yr * energyPerKg('carb') / YR_S : 0;
+    const capFrac = capLatDeg === undefined ? 0.06 : Math.max(0, 1 - Math.sin(capLatDeg * Math.PI / 180));
+    const soot_kg = plan.dust < 0 ? w.area * capFrac * (S.SOOT_G_PER_M2 / 1000) * (Math.abs(plan.dust) / 0.05) : 0;
+    return { pfcW, kilnW, totalW: pfcW + kilnW, soot_kg_yr: soot_kg, humanW: 1.8e13 };
+  };
+
   S.mirrorSpec = function (w, frac) {
     const area = Math.abs(frac) * w.cross;
     return { area, radius: Math.sqrt(area / Math.PI), mass_kg: area * 0.01, shade: frac < 0 };
