@@ -253,6 +253,26 @@ One lesson from running it: **the comets barely matter.** A thousand 5 km comets
 are worth 55 mbar; a single 100 km asteroid every twenty years is worth 320. Ice is easier to move
 and far rarer; rock is dry and abundant, and abundance wins.
 
+### The same programme, stage by stage
+
+Nothing starts everything on day one. Scenarios can now switch stages on as the years pass, and
+say so in the log — **"The realistic programme, stage by stage"** runs:
+
+| Year | Stage | Where Mars is |
+|---|---|---|
+| 0 | soot on the caps, mirror to +12% | 6 mbar, −57 °C |
+| 50 | perfluorocarbon plants (100 Mt/yr, 158 GW) | 24 mbar, −43 °C |
+| 150 | mirror finished: +25% | 39 mbar, −22 °C, first meltwater |
+| 200 | first asteroid: one 100 km body every 20 years | 47 mbar, −9 °C, water over 38% |
+| 300 | comets added: 1 of 5 km a year | 79 mbar, **+1 °C**, water over 52% |
+| 500 | — | 135 mbar, +9 °C, 66% |
+| 1000 | — | **270 mbar, +16 °C, 84%** |
+
+And **"Pushed to the limit of what exists"** — mirrors +40%, plants at 200 Mt/yr, one asteroid a
+decade, two comets a year — reaches 598 mbar and **+33 °C**, hotter than Earth, with water
+everywhere. It also empties the ~76 hundred-kilometre asteroids in 756 years. Overshoot is a real
+outcome: you would throttle the mirrors back long before then.
+
 ---
 
 ## The other worlds

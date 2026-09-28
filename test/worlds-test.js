@@ -328,5 +328,49 @@ for (const k of ['pluto', 'triton']) {
     `comets alone reach ${fp(comets.s.pPa)}; with the asteroids ${fp(r1000.s.pPa)} — a 100 km rock outweighs a thousand 5 km comets`);
 }
 
+/* ---- 15. the staged programme: stages switch on as the years pass ---- */
+{
+  const rock = (p, dia, rate, dv) => {
+    const b = S.BODIES.carbonaceous;
+    p.cometOn = true; p.bodyKind = 'carbonaceous'; p.bodySource = 'resonance'; p.bodyDia_m = dia;
+    p.cometMass_kg = Math.PI / 6 * Math.pow(dia, 3) * b.rho;
+    p.cometVolatileFrac = b.vol; p.cometSpeed_kms = b.v;
+    p.cometPerYear = rate; p.cometDeltaV_ms = dv; p.cometNukeEff = 0.01;
+  };
+  const phases = [
+    { year: 0, apply: (p) => { p.dust = -0.05; p.mirrorOn = true; p.mirrorFrac = 0.12; } },
+    { year: 50, apply: (p) => { p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+    { year: 150, apply: (p) => { p.mirrorFrac = 0.25; } },
+    { year: 200, apply: (p) => rock(p, 1e5, 0.05, 10) },
+    { year: 250, apply: (p) => { p.b2On = true; p.b2Kind = 'comet'; p.b2Source = 'jfc'; p.b2Dia_m = 5e3; p.b2PerYear = 1; } }
+  ];
+  const sim = new Sim('mars'), q = phases.slice(), at = {};
+  const marks = [150, 300, 1000];
+  for (let i = 0; i < 500; i++) {
+    while (q.length && sim.t >= q[0].year) q.shift().apply(sim.plan);
+    sim.step(2);
+    for (const m of marks) if (!at[m] && sim.t >= m) at[m] = sim.snapshot();
+  }
+  check('staged: mirrors and soot first, factories at 50, asteroids at 200',
+    at[150].pPa > 3000 && at[150].T > 240 && at[150].T < 265 && sim.cometsUsed > 0,
+    `year 150 (no rock yet): ${fp(at[150].pPa)}, ${(at[150].T - 273.15).toFixed(1)} °C — cap gone, factories warming it`);
+  check('staged: above freezing by year 300, a real atmosphere by year 1000',
+    at[300].T > 273 && at[300].warmFrac > 0.45 && at[1000].pPa > 2e4 && at[1000].T > 285,
+    `year 300: ${fp(at[300].pPa)}, ${(at[300].T - 273.15).toFixed(1)} °C, water over ${(at[300].warmFrac * 100).toFixed(0)}%; ` +
+    `year 1000: ${fp(at[1000].pPa)}, ${(at[1000].T - 273.15).toFixed(1)} °C, ${(at[1000].warmFrac * 100).toFixed(0)}%`);
+
+  /* pushed to the limit: it overshoots, and it runs out of 100 km rocks */
+  const hard = new Sim('mars');
+  Object.assign(hard.plan, { mirrorOn: true, mirrorFrac: 0.40, pfcOn: true, pfcRate_kg_yr: 2e11, dust: -0.05 });
+  rock(hard.plan, 1e5, 0.1, 10);
+  Object.assign(hard.plan, { b2On: true, b2Kind: 'comet', b2Source: 'jfc', b2Dia_m: 5e3, b2PerYear: 2 });
+  for (let i = 0; i < 500; i++) hard.step(2);
+  const hs = hard.snapshot(), sup = S.supply(S.streams(hard.plan)[0]);
+  check('pushed to the limit: warmer than Earth, and the big rocks run out',
+    hs.T > 300 && hs.warmFrac > 0.9 && sup.yearsToExhaust < 1000,
+    `after 1000 yr: ${fp(hs.pPa)}, ${(hs.T - 273.15).toFixed(1)} °C, ${(hs.warmFrac * 100).toFixed(0)}% — ` +
+    `hotter than Earth, and one 100 km asteroid a decade empties the ~${Math.round(sup.count)} that exist in ${Math.round(sup.yearsToExhaust)} years`);
+}
+
 console.log(`\n${pass}/${total} world checks passed`);
 process.exit(pass === total ? 0 : 1);

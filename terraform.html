@@ -3462,36 +3462,54 @@ void main() {
   const LEAVE = { key: 'baseline', name: 'Leave it alone', apply: () => { } };
   const SPECIFIC = {
     mars: [
-      { key: 'musk', name: "Musk's idea: nuke the poles", apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 10; p.nukeCount = 1000; p.nukeYears = 10; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; }, speed: 1 },
-      { key: 'arsenal', name: 'Fire the whole world arsenal', apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 1; p.nukeCount = 1500; p.nukeYears = 1; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; }, speed: 0.2 },
-      { key: 'allout', name: 'Build and fire a million arsenals', apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 100; p.nukeCount = 200000; p.nukeYears = 100; p.nukeCoupling = 0.1; p.nukeTarget = 'cap'; }, speed: 10 },
-      { key: 'mirrorTip', name: 'Mirrors: tip the polar cap', apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 0.12; }, speed: 10 },
-      { key: 'pfc', name: 'Perfluorocarbon factories', apply: (p) => { p.pfcOn = true; p.pfcRate_kg_yr = 2e11; }, speed: 20 },
-      { key: 'comets', name: 'Redirect comets for 500 years', apply: (p) => { p.cometOn = true; p.cometMass_kg = 2.6e14; p.cometPerYear = 2; }, speed: 10 },
-      { key: 'realCentury', name: 'A century of everything we could build, at the poles', speed: 10,
+      { key: 'musk', group: 'Bombs', name: "Musk's idea: nuke the poles", apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 10; p.nukeCount = 1000; p.nukeYears = 10; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; }, speed: 1 },
+      { key: 'arsenal', group: 'Bombs', name: 'Fire the whole world arsenal', apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 1; p.nukeCount = 1500; p.nukeYears = 1; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; }, speed: 0.2 },
+      { key: 'allout', group: 'Bombs', name: 'Build and fire a million arsenals', apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 100; p.nukeCount = 200000; p.nukeYears = 100; p.nukeCoupling = 0.1; p.nukeTarget = 'cap'; }, speed: 10 },
+      { key: 'mirrorTip', group: 'Sunlight and factories', name: 'Mirrors: tip the polar cap', apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 0.12; }, speed: 10 },
+      { key: 'pfc', group: 'Sunlight and factories', name: 'Perfluorocarbon factories', apply: (p) => { p.pfcOn = true; p.pfcRate_kg_yr = 2e11; }, speed: 20 },
+      { key: 'comets', group: 'Delivering mass', name: 'Redirect comets for 500 years', apply: (p) => { p.cometOn = true; p.cometMass_kg = 2.6e14; p.cometPerYear = 2; }, speed: 10 },
+      { key: 'realCentury', group: 'Bombs', name: 'A century of everything we could build, at the poles', speed: 10,
         apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 25; p.nukeCount = 4000; p.nukeYears = 100; p.nukeCoupling = 0.05; p.nukeTarget = 'cap'; } },
-      { key: 'rocks300', name: 'Asteroids: 20 Mars-crossers a year for 300 years', speed: 10,
+      { key: 'rocks300', group: 'Delivering mass', name: 'Asteroids: 20 Mars-crossers a year for 300 years', speed: 10,
         apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 20; p.cometDeltaV_ms = 10;
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
-      { key: 'bigRocks', name: 'One 100 km asteroid every 20 years, for a millennium', speed: 20,
+      { key: 'bigRocks', group: 'Delivering mass', name: 'One 100 km asteroid every 20 years, for a millennium', speed: 20,
         apply: (p) => { setBody(p, 'carbonaceous', 'resonance', 1e5); p.cometOn = true; p.cometPerYear = 0.05; p.cometDeltaV_ms = 10;
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
-      { key: 'rocksMillennium', name: 'Asteroids: 50 a year for a millennium', speed: 20,
+      { key: 'rocksMillennium', group: 'Delivering mass', name: 'Asteroids: 50 a year for a millennium', speed: 20,
         apply: (p) => { setBody(p, 'carbonaceous', 'crosser', 1e4); p.cometOn = true; p.cometPerYear = 50; p.cometDeltaV_ms = 10;
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
-      { key: 'cometMovers', name: 'Bombs as comet-movers: 5 a year for 300 years', speed: 10,
+      { key: 'cometMovers', group: 'Delivering mass', name: 'Bombs as comet-movers: 5 a year for 300 years', speed: 10,
         apply: (p) => { p.cometOn = true; p.cometPerYear = 5; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
-      { key: 'cometMillennium', name: 'The full programme: 50 comets a year for a millennium', speed: 20,
+      { key: 'cometMillennium', group: 'Delivering mass', name: 'The full programme: 50 comets a year for a millennium', speed: 20,
         apply: (p) => { p.cometOn = true; p.cometPerYear = 50; p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
-      { key: 'realistic', name: 'Everything we could really do: mirrors, factories, asteroids, the comets that pass', speed: 20,
+      { key: 'staged', group: 'Whole programmes', name: 'The realistic programme, stage by stage', speed: 20,
+        apply: (p) => { p.dust = -0.05; p.mirrorOn = true; p.mirrorFrac = 0.12; },
+        phases: [
+          { year: 50, note: 'Perfluorocarbon plants come online: 100 Mt a year, 158 GW.',
+            apply: (p) => { p.pfcOn = true; p.pfcRate_kg_yr = 1e11; } },
+          { year: 150, note: 'The mirror is finished: +25% sunlight.',
+            apply: (p) => { p.mirrorFrac = 0.25; } },
+          { year: 200, note: 'The first asteroid arrives. One 100 km carbonaceous body every 20 years from here.',
+            apply: (p) => { setBody(p, 'carbonaceous', 'resonance', 1e5); p.cometOn = true; p.cometPerYear = 0.05; p.cometDeltaV_ms = 10; } },
+          { year: 250, note: 'Comet interception begins: one 5 km comet a year, out of the ~2.8 that pass.',
+            apply: (p) => { p.b2On = true; p.b2Kind = 'comet'; p.b2Source = 'jfc'; p.b2Dia_m = 5e3; p.b2PerYear = 1; } }
+        ] },
+      { key: 'pushed', group: 'Whole programmes', name: 'Pushed to the limit of what exists', speed: 20,
+        apply: (p) => {
+          p.mirrorOn = true; p.mirrorFrac = 0.40; p.pfcOn = true; p.pfcRate_kg_yr = 2e11; p.dust = -0.05;
+          setBody(p, 'carbonaceous', 'resonance', 1e5); p.cometOn = true; p.cometPerYear = 0.1; p.cometDeltaV_ms = 10;
+          p.b2On = true; p.b2Kind = 'comet'; p.b2Source = 'jfc'; p.b2Dia_m = 5e3; p.b2PerYear = 2;
+        } },
+      { key: 'realistic', group: 'Whole programmes', name: 'Everything we could really do: mirrors, factories, asteroids, the comets that pass', speed: 20,
         apply: (p) => {
           p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; p.dust = -0.05;
           setBody(p, 'carbonaceous', 'resonance', 1e5); p.cometOn = true; p.cometPerYear = 0.05; p.cometDeltaV_ms = 10;
           p.b2On = true; p.b2Kind = 'comet'; p.b2Source = 'jfc'; p.b2Dia_m = 5e3; p.b2PerYear = 1;
         } },
-      { key: 'best', name: 'The best we could do with no imports: mirrors, factories, soot', speed: 20,
+      { key: 'best', group: 'Sunlight and factories', name: 'The best we could do with no imports: mirrors, factories, soot', speed: 20,
         apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 1e11; p.dust = -0.05; } },
-      { key: 'everything', name: 'Everything at once, for a millennium', speed: 20, apply: (p) => {
+      { key: 'everything', group: 'Whole programmes', name: 'Everything at once, for a millennium', speed: 20, apply: (p) => {
         p.mirrorOn = true; p.mirrorFrac = 0.25; p.pfcOn = true; p.pfcRate_kg_yr = 5e11;
         p.cometOn = true; p.cometPerYear = 2; p.bakeOn = true; p.bakeRate_kg_yr = 2e14; p.dust = -0.05;
       } }
@@ -3530,8 +3548,8 @@ void main() {
   function scenariosFor(w) {
     if (SPECIFIC[w.key]) return [LEAVE].concat(SPECIFIC[w.key]);
     const list = [LEAVE];
-    if (w.res0.ice_h2o > 0) list.push({ key: 'nukeIce', name: 'Nuke the ice: 1,000 world arsenals', apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 1; p.nukeCount = 150000; p.nukeYears = 10; p.nukeTarget = 'ice'; }, speed: 1 });
-    list.push({ key: 'mirror', name: 'Mirrors: triple the sunlight', apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 2; }, speed: 20 });
+    if (w.res0.ice_h2o > 0) list.push({ key: 'nukeIce', group: 'Bombs', name: 'Nuke the ice: 1,000 world arsenals', apply: (p) => { p.nukeOn = true; p.nukeYieldMt = 1; p.nukeCount = 150000; p.nukeYears = 10; p.nukeTarget = 'ice'; }, speed: 1 });
+    list.push({ key: 'mirror', group: 'Sunlight and factories', name: 'Mirrors: triple the sunlight', apply: (p) => { p.mirrorOn = true; p.mirrorFrac = 2; }, speed: 20 });
     list.push({ key: 'comets', name: '1,000 comets over 500 years', apply: (p) => { p.cometOn = true; p.cometPerYear = 2; }, speed: 20 });
     return list;
   }
@@ -3574,7 +3592,14 @@ void main() {
   let scenarios = [];
   function fillScenarios() {
     scenarios = scenariosFor(sim.w);
-    $('scenario').innerHTML = scenarios.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+    /* group the menu: it has grown past a dozen entries */
+    const seen = [];
+    scenarios.forEach((sc, i) => {
+      const g = sc.group || '';
+      const row = seen.find((x) => x.g === g);
+      (row ? row.items : (seen.push({ g, items: [] }), seen[seen.length - 1].items)).push(`<option value="${i}">${sc.name}</option>`);
+    });
+    $('scenario').innerHTML = seen.map((x) => x.g ? `<optgroup label="${x.g}">${x.items.join('')}</optgroup>` : x.items.join('')).join('');
     const t = targetsFor(sim.w, sim.st);
     $('nTarget').innerHTML = t.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
     const kinds = Object.entries(MS.BODIES).map(([k, b]) => `<option value="${k}">${b.name}</option>`).join('');
@@ -3598,8 +3623,25 @@ void main() {
 
   $('world').value = sim.w.key;
   $('world').onchange = (e) => newWorld(e.target.value);
+  let phaseQueue = [], phaseScenario = null;
+  function startScenario(sc) {
+    phaseScenario = sc;
+    phaseQueue = (sc.phases || []).map((p) => Object.assign({}, p));
+  }
+  /* a programme does not start everything on day one: stages switch on as
+     the years pass, and say so in the log */
+  function runPhases() {
+    while (phaseQueue.length && sim.t >= phaseQueue[0].year) {
+      const ph = phaseQueue.shift();
+      ph.apply(sim.plan);
+      sim.log(ph.note, 'good');
+      syncPanels();
+    }
+  }
+
   $('scenario').onchange = (e) => {
     const sc = scenarios[+e.target.value];
+    startScenario(sc);
     sim.plan = MS.defaultPlan();
     sim.plan.nukeTarget = targetsFor(sim.w, sim.w.res0)[0][0];
     sc.apply(sim.plan);
@@ -3616,6 +3658,12 @@ void main() {
     $('play').textContent = sim.paused ? '▶ Run' : '❚❚ Pause';
   };
   $('reset').onclick = () => {
+    if (phaseScenario) {                       /* start the programme over, stages and all */
+      sim.plan = MS.defaultPlan();
+      sim.plan.nukeTarget = targetsFor(sim.w, sim.w.res0)[0][0];
+      phaseScenario.apply(sim.plan);
+      startScenario(phaseScenario);
+    }
     sim.reset(); view.setWorld(sim.w);
     spawn.n = 0; spawn.c = 0; spawn.pendN = 0; spawn.pendC = 0;
     hideBlast(); syncAll();
@@ -4218,6 +4266,7 @@ void main() {
       const n = Math.min(200, Math.max(1, Math.ceil(dt / 25)));
       for (let i = 0; i < n; i++) sim.step(dt / n);
     }
+    if (phaseQueue.length) runPhases();
     spawnT += dtReal;
     if (spawnT > 0.16) { spawnT = 0; spawnCampaign(now); }
     view.setState(sim.visualState(), sim.plan);
@@ -4256,7 +4305,7 @@ void main() {
       $('scenario').value = String(i); $('scenario').onchange({ target: { value: String(i) } });
       return true;
     },
-    run: (yrs) => { const n = Math.ceil(yrs / 5); for (let i = 0; i < n; i++) sim.step(yrs / n); update(true); },
+    run: (yrs) => { const n = Math.ceil(yrs / 5); for (let i = 0; i < n; i++) { if (phaseQueue.length) runPhases(); sim.step(yrs / n); } update(true); },
     detonate: (lat, lon, y) => {
       if (y) bombMt = y;
       const dir = RN.dirFromLatLon(lat, lon);
